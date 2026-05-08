@@ -14,20 +14,20 @@ const brandLogos = [
 
 export default function HeroLogoCarousel() {
   return (
-    <section className="border-b border-white/10 bg-zinc-800/60 py-6 sm:py-8">
+    <section className="border-y border-neutral-200 bg-neutral-100/80 py-6 sm:py-8">
       <div className="overflow-hidden">
         <div className="flex w-max animate-marquee gap-8 sm:gap-12">
           {[...brandLogos, ...brandLogos].map((logo, i) => (
             <div
               key={`${logo.alt}-${i}`}
-              className="flex h-8 w-[120px] shrink-0 items-center justify-center sm:h-10 sm:w-[140px]"
+              className="flex h-8 w-[120px] shrink-0 items-center justify-center opacity-85 sm:h-10 sm:w-[140px]"
             >
               <Image
                 src={logo.src}
                 alt={logo.alt}
                 width={140}
                 height={40}
-                className="h-full w-full object-contain object-center opacity-80 transition-opacity hover:opacity-100"
+                className="h-full w-full object-contain object-center transition-opacity hover:opacity-100"
               />
             </div>
           ))}

@@ -15,49 +15,57 @@ const navLinks = [
   { href: "/contact", label: "Contact" },
 ];
 
+function linkActive(pathname: string | null, href: string) {
+  if (href === "/") return pathname === "/";
+  if (href === "/blog") return pathname?.startsWith("/blog") ?? false;
+  return pathname === href;
+}
+
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
   return (
     <motion.header
-      initial={{ y: -20, opacity: 0 }}
+      initial={{ y: -12, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="fixed top-0 left-0 right-0 z-[100] border-b border-white/10 bg-zinc-950/90 backdrop-blur-md supports-[backdrop-filter]:bg-zinc-950/80"
+      transition={{ duration: 0.45 }}
+      className="fixed top-0 left-0 right-0 z-[100] border-b border-neutral-200/90 bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/85"
     >
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <Link
-          href="/"
-          className="flex items-center gap-2 text-xl font-semibold tracking-tight"
-        >
+      <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6 lg:px-8">
+        <Link href="/" className="flex shrink-0 items-center gap-2">
           <Image
             src="/LinkHexa Logo Svg.svg"
             alt="LinkHexa"
             width={160}
             height={50}
-            className="h-10 w-auto sm:h-11"
+            className="h-9 w-auto sm:h-10"
             priority
           />
         </Link>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <div className="flex items-center gap-5 rounded-xl border border-white/10 bg-white/5 px-5 py-2.5">
-            {navLinks.map((link, i) => (
-              <span key={link.href + link.label} className="flex items-center gap-5">
-                {i === 2 && <span className="text-zinc-500">|</span>}
+        <div className="hidden items-center gap-3 md:flex">
+          <div className="flex flex-wrap items-center justify-end gap-6 text-center lg:gap-8 xl:gap-11">
+            {navLinks.map((link) => {
+              const active = linkActive(pathname, link.href);
+              return (
                 <Link
+                  key={link.href + link.label}
                   href={link.href}
-                  className={`text-sm font-medium transition-colors hover:text-white ${(link.href === "/" && pathname === "/") || (link.href === "/about" && pathname === "/about") || (link.href === "/contact" && pathname === "/contact") || (link.href === "/advertisers" && pathname === "/advertisers") || (link.href === "/publishers" && pathname === "/publishers") || (link.href === "/blog" && pathname?.startsWith("/blog")) ? "text-indigo-400" : "text-zinc-400"}`}
+                  className={`text-lg leading-7 transition-colors xl:text-2xl xl:leading-[36px] ${
+                    active
+                      ? "font-bold text-[#1f006a]"
+                      : "font-normal text-[#a3a3a3] hover:text-neutral-700"
+                  }`}
                 >
                   {link.label}
                 </Link>
-              </span>
-            ))}
+              );
+            })}
           </div>
           <Link
             href="/get-started"
-            className="ml-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-black transition-all hover:bg-zinc-200"
+            className="ml-4 rounded-xl bg-[#1f006a] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#2d0a7a]"
           >
             Get Started
           </Link>
@@ -71,15 +79,15 @@ export default function Navbar() {
         >
           <motion.span
             animate={mobileOpen ? { rotate: 45, y: 6 } : { rotate: 0, y: 0 }}
-            className="h-0.5 w-6 bg-white"
+            className="h-0.5 w-6 bg-neutral-800"
           />
           <motion.span
             animate={mobileOpen ? { opacity: 0 } : { opacity: 1 }}
-            className="h-0.5 w-6 bg-white"
+            className="h-0.5 w-6 bg-neutral-800"
           />
           <motion.span
             animate={mobileOpen ? { rotate: -45, y: -6 } : { rotate: 0, y: 0 }}
-            className="h-0.5 w-6 bg-white"
+            className="h-0.5 w-6 bg-neutral-800"
           />
         </button>
       </nav>
@@ -91,14 +99,18 @@ export default function Navbar() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="glass-strong border-t border-white/5 md:hidden"
+            className="border-t border-neutral-200 bg-white md:hidden"
           >
-            <div className="flex flex-col gap-1 px-4 py-4">
+            <div className="flex flex-col gap-0.5 px-4 py-3">
               {navLinks.map((link) => (
                 <Link
                   key={link.href + link.label}
                   href={link.href}
-                  className="rounded-lg px-4 py-3 text-sm font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+                  className={`rounded-lg px-4 py-3 text-base font-medium ${
+                    linkActive(pathname, link.href)
+                      ? "bg-violet-50 text-[#1f006a]"
+                      : "text-neutral-700 hover:bg-neutral-50"
+                  }`}
                   onClick={() => setMobileOpen(false)}
                 >
                   {link.label}
@@ -106,7 +118,7 @@ export default function Navbar() {
               ))}
               <Link
                 href="/get-started"
-                className="mt-3 rounded-lg bg-white px-4 py-3 text-center text-sm font-semibold text-black hover:bg-zinc-200"
+                className="mt-2 rounded-xl bg-[#1f006a] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#2d0a7a]"
                 onClick={() => setMobileOpen(false)}
               >
                 Get Started

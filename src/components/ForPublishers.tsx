@@ -68,9 +68,9 @@ function AnimatedStat({
         : display.toLocaleString() + suffix);
 
   return (
-    <div ref={ref} className="rounded-2xl border border-white/5 bg-zinc-900/60 p-4 text-center backdrop-blur-sm transition-all hover:-translate-y-1 hover:border-indigo-500/20 sm:p-6">
-      <p className="text-2xl font-bold text-indigo-400 sm:text-3xl lg:text-4xl">{formatted}</p>
-      <p className="mt-1 text-sm text-zinc-500">{label}</p>
+    <div ref={ref} className="rounded-2xl border border-neutral-200 bg-white p-4 text-center shadow-sm transition-all hover:-translate-y-1 hover:border-violet-300 sm:p-6">
+      <p className="text-2xl font-bold text-[#1f006a] sm:text-3xl lg:text-4xl">{formatted}</p>
+      <p className="mt-1 text-sm text-neutral-600">{label}</p>
     </div>
   );
 }
@@ -79,7 +79,7 @@ function PublisherLineChart() {
   const points = "0,55 15,48 30,52 45,40 60,45 75,35 100,28";
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium text-zinc-300">Budget ($/Day)</p>
+      <p className="text-sm font-medium text-neutral-700">Budget ($/Day)</p>
       <div className="h-20 w-full">
         <svg viewBox="0 0 100 60" className="h-full w-full" preserveAspectRatio="none">
           <defs>
@@ -98,7 +98,7 @@ function PublisherLineChart() {
           />
         </svg>
       </div>
-      <div className="flex justify-between text-xs text-zinc-500">
+      <div className="flex justify-between text-xs text-neutral-500">
         <span>Jan</span>
         <span>Dec</span>
       </div>
@@ -110,12 +110,12 @@ function PublisherBarChart() {
   const heights = [35, 50, 60, 75, 88, 100];
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium text-zinc-300">Generated Traffic & Leads</p>
+      <p className="text-sm font-medium text-neutral-700">Generated Traffic & Leads</p>
       <div className="flex h-20 items-end justify-between gap-1">
         {heights.map((h, i) => (
           <div
             key={i}
-            className="flex-1 rounded-t bg-indigo-500/60 transition-colors hover:bg-indigo-500/80"
+            className="flex-1 rounded-t bg-violet-400/80 transition-colors hover:bg-violet-500"
             style={{ height: `${h}%` }}
           />
         ))}
@@ -126,11 +126,9 @@ function PublisherBarChart() {
 
 export default function ForPublishers() {
   return (
-    <section id="publishers" className="relative overflow-hidden py-16 sm:py-24 lg:py-32">
-      {/* Glow - left side this time for layout variation */}
+    <section id="publishers" className="relative overflow-hidden bg-neutral-50/90 py-16 sm:py-24 lg:py-32">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-32 top-1/4 h-[320px] w-[320px] rounded-full bg-violet-500/15 blur-[100px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_80%_at_0%_50%,rgba(99,102,241,0.08),transparent)]" />
+        <div className="absolute -left-24 top-1/4 h-[280px] w-[280px] rounded-full bg-violet-200/45 blur-[90px]" />
       </div>
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -145,32 +143,29 @@ export default function ForPublishers() {
               className="inline-block"
             >
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/25 text-indigo-400">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-[#1f006a]">
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                  For <span className="border-b-2 border-indigo-400 pb-0.5">Publishers</span>
+                <h2 className="text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">
+                  For <span className="border-b-2 border-[#1f006a] pb-0.5">Publishers</span>
                 </h2>
               </div>
             </motion.div>
-            <p
-              className="mt-3 text-base font-medium text-zinc-300 sm:text-lg"
-              style={{ fontFamily: "var(--font-libre-baskerville), serif" }}
-            >
+            <p className="mt-3 text-base font-medium text-neutral-800 sm:text-lg">
               Effortless Content Monetization
             </p>
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="mt-4 text-sm leading-relaxed text-zinc-400 sm:mt-5 sm:text-base"
+              className="mt-4 text-sm leading-relaxed text-neutral-600 sm:mt-5 sm:text-base"
             >
               Transform your audience into consistent revenue. Work with reputable brands, monitor every conversion, and receive timely payments. Our platform empowers publishers to grow with actionable insights and dependable payouts.
             </motion.p>
 
-            <p className="mt-10 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400/90">
+            <p className="mt-10 text-xs font-semibold uppercase tracking-[0.2em] text-[#1f006a]">
               Why Publishers Partner with Us
             </p>
             <ul className="mt-4 space-y-4 sm:mt-5 sm:space-y-6">
@@ -183,10 +178,10 @@ export default function ForPublishers() {
                   transition={{ delay: i * 0.08 }}
                   className="flex gap-4"
                 >
-                  <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-indigo-400" />
+                  <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#1f006a]" />
                   <div>
-                    <span className="font-bold text-indigo-400">{item.title}</span>
-                    <p className="mt-1.5 text-sm leading-relaxed text-zinc-400">{item.description}</p>
+                    <span className="font-bold text-[#1f006a]">{item.title}</span>
+                    <p className="mt-1.5 text-sm leading-relaxed text-neutral-600">{item.description}</p>
                   </div>
                 </motion.li>
               ))}
@@ -199,7 +194,7 @@ export default function ForPublishers() {
               initial={{ opacity: 0, x: 20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              className="rounded-2xl border border-white/5 bg-zinc-900/60 p-6 backdrop-blur-sm"
+              className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm"
             >
               <PublisherLineChart />
             </motion.div>
@@ -208,7 +203,7 @@ export default function ForPublishers() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="rounded-2xl border border-white/5 bg-zinc-900/60 p-6 backdrop-blur-sm"
+              className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm"
             >
               <PublisherBarChart />
             </motion.div>

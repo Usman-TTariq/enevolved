@@ -1,179 +1,205 @@
 "use client";
 
+import Link from "next/link";
+import { Caladea, DM_Sans } from "next/font/google";
 import { motion } from "framer-motion";
+import { figmaFadeUp, figmaViewport } from "@/lib/figma-home-motion";
 
-const features = [
+const sectionSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const sectionDisplay = DM_Sans({
+  subsets: ["latin"],
+  weight: ["700"],
+  display: "swap",
+});
+
+const sectionSerif = Caladea({
+  subsets: ["latin"],
+  weight: ["700"],
+  style: ["italic"],
+  display: "swap",
+});
+
+const listRows = [
   {
+    label: "Custom your EPC dolor sit",
+    sub: "Lorem ipsum dolor sit amet, consectetur adipiscing",
+    price: "$47.00",
     icon: (
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth={2}
-        d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+        strokeWidth={1.75}
+        d="M9 2v2m6-2v2M7 8h10a2 2 0 012 2v8a2 2 0 01-2 2H7a2 2 0 01-2-2v-8a2 2 0 012-2zM9 12h6"
       />
     ),
-    title: "Live Attribution",
-    description:
-      "Monitor clicks, leads, and conversions in real time. Our platform ensures precise attribution so each partner gets the right credit for the performance they deliver.",
   },
   {
+    label: "Custom your EPC dolor sit",
+    sub: "Lorem ipsum dolor sit amet, consectetur adipiscing",
+    price: "$47.00",
     icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-      />
+      <>
+        <circle cx="12" cy="12" r="10" fill="none" strokeWidth={1.75} />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M2 12h20M12 2a15.3 15.3 0 010 20" />
+      </>
     ),
-    title: "Reliable Payouts",
-    description:
-      "Handle commissions and partner payments through a dependable payout system. Automated workflows and flexible withdrawal methods help ensure earnings are delivered quickly and without hassle.",
   },
   {
+    label: "Custom your EPC dolor sit",
+    sub: "Lorem ipsum dolor sit amet, consectetur adipiscing",
+    price: "$47.00",
     icon: (
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth={2}
-        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+        strokeWidth={1.75}
+        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l8.328-8.329a6 6 0 012.828-1.415z"
       />
     ),
-    title: "Traffic Integrity",
-    description:
-      "We actively review incoming traffic to maintain campaign quality and reduce risk. Built-in protection helps flag suspicious behavior and prevents fake clicks or misleading conversions from affecting performance.",
-  },
-  {
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0h.5a2.5 2.5 0 002.5-2.5V3.935M12 12a9 9 0 11-18 0 9 9 0 0118 0z"
-      />
-    ),
-    title: "Borderless Partnerships",
-    description:
-      "Connect with advertisers and publishers across diverse regions and sectors, enabling you to grow your audience and forge meaningful global collaborations.",
-  },
-  {
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-      />
-    ),
-    title: "Performance Intelligence",
-    description:
-      "Gain actionable insights into your campaigns with detailed analytics. Spot high-performing partners, track emerging trends, and make data-driven decisions to enhance results.",
-  },
-  {
-    icon: (
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
-      />
-    ),
-    title: "One Dashboard",
-    description:
-      "Manage all your campaigns, partners, and messages from a single centralized platform, built to streamline your affiliate program and simplify everyday operations.",
   },
 ];
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08 },
-  },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 },
-};
-
 export default function Features() {
   return (
-    <section id="features" className="relative overflow-hidden py-16 sm:py-24 lg:py-32">
-      {/* Purple glow on left - same style as Hero */}
+    <section
+      id="features"
+      className={`${sectionSans.className} relative overflow-hidden bg-white py-16 sm:py-20 lg:py-28`}
+    >
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-32 top-1/4 h-[400px] w-[400px] rounded-full bg-indigo-500/20 blur-[120px]" />
-        <div className="absolute left-0 top-1/2 h-[300px] w-[300px] rounded-full bg-violet-500/15 blur-[100px]" />
-        <div className="absolute -left-20 bottom-1/4 h-[280px] w-[280px] rounded-full bg-indigo-600/10 blur-[80px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_80%_at_0%_50%,rgba(99,102,241,0.12),transparent)]" />
+        <div className="absolute -left-20 top-0 h-[380px] w-[380px] rounded-full bg-violet-300/35 blur-[110px]" />
+        <div className="absolute bottom-0 left-1/3 h-[360px] w-[420px] -translate-x-1/2 rounded-full bg-teal-200/25 blur-[100px]" />
+        <div className="absolute -right-16 top-1/3 h-[280px] w-[280px] rounded-full bg-violet-200/40 blur-[90px]" />
       </div>
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Unique heading: framed title + pill icon */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="mx-auto flex max-w-2xl flex-col items-center text-center"
-        >
-          <div className="relative inline-flex flex-col items-center gap-4 rounded-2xl border-2 border-indigo-400/70 bg-black/40 px-5 py-5 sm:gap-5 sm:px-8 sm:py-6 lg:px-12 lg:py-8">
-            {/* Pill-shaped accent with subtle shadow */}
-            <div
-              className="h-2 w-14 rounded-full bg-violet-500/90 shadow-md"
-              style={{
-                boxShadow: "0 4px 14px rgba(139, 92, 246, 0.35)",
-              }}
-            />
-            <h2
-              className="font-display text-2xl font-extrabold tracking-tight text-indigo-400 sm:text-3xl"
-              style={{ fontFamily: "var(--font-libre-baskerville), serif", letterSpacing: "-0.02em" }}
-            >
-              Platform Capabilities
-            </h2>
-          </div>
-          <p
-            className="mt-4 text-base font-semibold tracking-wide text-white/90 sm:mt-5 sm:text-lg"
-            style={{ fontFamily: "var(--font-libre-baskerville), serif", letterSpacing: "0.01em" }}
-          >
-            Built for Performance Partnerships
-          </p>
-          <p className="mt-3 max-w-3xl text-base leading-relaxed text-zinc-400">
-            Our platform connects advertisers and publishers through reliable
-            technology that simplifies collaboration, tracks results accurately,
-            and supports long-term affiliate growth.
-          </p>
-        </motion.div>
 
-        {/* 2x3 grid of feature cards */}
-        <motion.div
-          variants={container}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true }}
-          className="mt-10 grid gap-4 sm:grid-cols-2 sm:mt-16 sm:gap-6 lg:grid-cols-3"
-        >
-          {features.map((feature, i) => (
-            <motion.div
-              key={i}
-              variants={item}
-              className="group glass rounded-2xl border border-white/5 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/10"
+      <div className="relative mx-auto w-full max-w-none px-4 sm:px-6 md:px-10 lg:px-12 xl:px-16 2xl:px-20">
+        <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-16 xl:gap-20">
+          {/* Left on desktop: product card */}
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={figmaViewport}
+            variants={figmaFadeUp}
+            className="order-2 lg:order-1"
+          >
+            <div
+              className="flex w-full max-w-[min(100%,720px)] flex-col rounded-[20px] border border-neutral-200 bg-white p-8 sm:p-9 lg:h-[554px] lg:w-[720px] lg:max-w-none lg:shrink-0 lg:overflow-hidden"
+              style={{ boxShadow: "0px 19.9px 39.81px -9.55px rgba(0, 0, 0, 0.05)" }}
             >
-              <div className="mb-4 inline-flex rounded-xl bg-indigo-500/10 p-3 text-indigo-400 transition-colors group-hover:bg-indigo-500/20">
-                <svg
-                  className="h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  {feature.icon}
-                </svg>
+              <div className="shrink-0">
+                <div className="flex flex-wrap items-start gap-4">
+                  <div
+                    className={`${sectionDisplay.className} flex h-[3.75rem] w-[3.75rem] shrink-0 items-center justify-center rounded-xl text-base font-bold text-neutral-950 shadow-sm ring-1 ring-violet-200/60 sm:h-16 sm:w-16 sm:text-lg`}
+                    style={{
+                      background: "linear-gradient(180deg, #e9d5ff 0%, #fbcfe8 100%)",
+                    }}
+                  >
+                    41%
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className={`${sectionDisplay.className} text-2xl font-bold tracking-tight text-neutral-950`}>
+                      Welcome Back!
+                    </h3>
+                    <p className="mt-2 flex items-center gap-2 text-sm text-neutral-500 sm:text-[15px]">
+                      <span className="text-neutral-400" aria-hidden>
+                        →
+                      </span>
+                      Track commissions and sales from synced data
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-8 border-t border-neutral-200/90 pt-8">
+                  <p className={`${sectionDisplay.className} text-sm font-bold text-neutral-950 sm:text-[15px]`}>
+                    Commission &amp; Performance
+                  </p>
+
+                  <div
+                    className="mt-4 rounded-2xl p-4 sm:p-5"
+                    style={{
+                      background: "linear-gradient(90deg, #A890FE 0%, #7EF3E1 100%)",
+                    }}
+                  >
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-full max-w-[420px] rounded-full bg-white px-5 py-2.5 text-center text-sm font-medium text-neutral-950 shadow-sm">
+                        www.yourbrandname.com
+                      </div>
+                      <p className="text-center text-xs font-medium leading-snug text-neutral-950 sm:text-sm">
+                        Pulled live from brand&apos;s programme details endpoint for this programm
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-base font-bold text-white sm:text-lg">{feature.title}</h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-zinc-400 sm:mt-2 sm:text-sm">
-                {feature.description}
-              </p>
-            </motion.div>
-          ))}
-        </motion.div>
+
+              <ul className="features-card-scroll mt-6 min-h-0 flex-1 space-y-3 overflow-y-auto pb-1 pr-1 sm:mt-7 lg:mt-5">
+                {listRows.map((row, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center gap-4 rounded-xl border border-neutral-200/80 bg-neutral-50 p-3.5 sm:p-4"
+                  >
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 ring-1 ring-neutral-200/80">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        {row.icon}
+                      </svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`${sectionDisplay.className} text-sm font-bold text-neutral-950 sm:text-base`}>
+                        {row.label}
+                      </p>
+                      <p className="mt-0.5 text-xs text-neutral-500 sm:text-sm">{row.sub}</p>
+                    </div>
+                    <span className={`${sectionDisplay.className} shrink-0 text-base font-bold text-[#28A745] sm:text-lg`}>
+                      {row.price}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </motion.div>
+
+          {/* Right on desktop: copy */}
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={figmaViewport}
+            variants={figmaFadeUp}
+            className="order-1 lg:order-2 lg:pl-4"
+          >
+            <div className="inline-flex items-center gap-3 rounded-full bg-gradient-to-r from-[#e8d3ff] to-[rgba(232,212,255,0.12)] py-1.5 pl-2 pr-5">
+              <span
+                className="size-5 shrink-0 rounded-full ring-1 ring-violet-300/60"
+                style={{
+                  background: "radial-gradient(circle at 32% 28%, #f5f3ff 0%, #a78bfa 40%, #5b21b6 100%)",
+                }}
+                aria-hidden
+              />
+              <span className="text-sm font-semibold text-[#1f006a] sm:text-base">Platform Capabilities</span>
+            </div>
+
+            <h2 className="mt-6 max-w-xl tracking-tight text-neutral-950 [font-size:clamp(2rem,4vw,3.25rem)] [line-height:1.12] sm:mt-8">
+              <span className={`${sectionDisplay.className} font-bold`}>Built For </span>
+              <span className={`${sectionSerif.className} font-bold italic text-[#4c1d95]`}>Performance </span>
+              <span className={`${sectionDisplay.className} font-bold`}>Partnerships</span>
+            </h2>
+
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-neutral-600 sm:mt-6 sm:text-lg">
+              Our platform connects advertisers and publishers through reliable technology that simplifies
+              collaboration, tracks results accurately, and supports long-term affiliate growth.
+            </p>
+
+            <Link
+              href="/get-started"
+              className={`${sectionDisplay.className} mt-8 inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#1f006a] to-[#4c1d95] px-8 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:opacity-95 sm:mt-10`}
+            >
+              Get Started For Free
+            </Link>
+          </motion.div>
+        </div>
       </div>
     </section>
   );

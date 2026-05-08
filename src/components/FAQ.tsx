@@ -35,10 +35,9 @@ export default function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="relative overflow-hidden py-16 sm:py-24 lg:py-32">
+    <section id="faq" className="relative overflow-hidden bg-neutral-50/90 py-16 sm:py-24 lg:py-32">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-1/3 h-[280px] w-[280px] -translate-x-1/2 rounded-full bg-indigo-500/10 blur-[100px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,rgba(99,102,241,0.06),transparent)]" />
+        <div className="absolute left-1/2 top-1/3 h-[240px] w-[240px] -translate-x-1/2 rounded-full bg-violet-200/35 blur-[90px]" />
       </div>
 
       <div className="relative mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
@@ -48,16 +47,13 @@ export default function FAQ() {
           viewport={{ once: true }}
           className="text-center"
         >
-          <p className="text-sm font-medium uppercase tracking-widest text-indigo-400">
+          <p className="text-sm font-medium uppercase tracking-widest text-[#1f006a]">
             FAQ
           </p>
-          <h2
-            className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl"
-            style={{ fontFamily: "var(--font-libre-baskerville), serif", letterSpacing: "-0.02em" }}
-          >
+          <h2 className="mt-4 text-3xl font-bold tracking-[-0.02em] text-neutral-900 sm:text-4xl">
             Frequently asked questions
           </h2>
-          <p className="mt-3 text-sm text-zinc-400 sm:mt-4 sm:text-base">
+          <p className="mt-3 text-sm text-neutral-600 sm:mt-4 sm:text-base">
             Discover How LinkHexa and Our Affiliate Programs Can Work for You
           </p>
         </motion.div>
@@ -70,16 +66,16 @@ export default function FAQ() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.05 }}
-              className="rounded-xl border border-white/5 bg-zinc-900/40 backdrop-blur-sm transition-colors hover:border-white/10"
+              className="rounded-xl border border-neutral-200 bg-white shadow-sm transition-colors hover:border-violet-200"
             >
               <button
                 type="button"
                 onClick={() => setOpenIndex(openIndex === i ? null : i)}
                 className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left sm:gap-4 sm:px-5 sm:py-4"
               >
-                <span className="text-left text-sm font-semibold text-white sm:text-base">{faq.question}</span>
+                <span className="text-left text-sm font-semibold text-neutral-900 sm:text-base">{faq.question}</span>
                 <span
-                  className={`shrink-0 text-indigo-400 transition-transform duration-200 ${
+                  className={`shrink-0 text-[#1f006a] transition-transform duration-200 ${
                     openIndex === i ? "rotate-180" : ""
                   }`}
                 >
@@ -97,7 +93,7 @@ export default function FAQ() {
                     transition={{ duration: 0.25 }}
                     className="overflow-hidden"
                   >
-                    <p className="border-t border-white/5 px-4 py-3 text-sm leading-relaxed text-zinc-400 sm:px-5 sm:py-4">
+                    <p className="border-t border-neutral-100 px-4 py-3 text-sm leading-relaxed text-neutral-600 sm:px-5 sm:py-4">
                       {faq.answer}
                     </p>
                   </motion.div>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireApprovedPublisher } from "@/lib/publisher-session";
+import { applyUsdToAwinUpsertRows, isFxUsdEnabled } from "@/lib/awin/fx-frankfurter";
 import { collectAttributedDbTransactions } from "@/lib/publisher/collect-attributed-db-transactions";
 
 const PROGRAMME_ID_IN_CHUNK = 200;
@@ -22,9 +23,8 @@ function addMoney(bucket: Record<string, number>, currency: string | null | unde
   bucket[c] = (bucket[c] ?? 0) + (Number.isFinite(amount) ? amount : 0);
 }
 
-function scoreAdvertiser(a: { sales: number; commissionByCurrency: Record<string, number> }): number {
-  const comm = Object.values(a.commissionByCurrency).reduce((s, v) => s + v, 0);
-  return a.sales * 1e6 + comm;
+function scoreAdvertiser(a: { sales: number; commissionUsdApprox: number }): number {
+  return a.sales * 1e6 + a.commissionUsdApprox;
 }
 
 async function fetchProgrammeNameMap(
@@ -53,6 +53,10 @@ type Agg = {
   sales: number;
   revenueByCurrency: Record<string, number>;
   commissionByCurrency: Record<string, number>;
+  /** Sum of `sale_amount_usd` (ECB/Frankfurter vs txn UTC date); filled at sync. */
+  revenueUsdApprox: number;
+  /** Sum of `commission_amount_usd`. */
+  commissionUsdApprox: number;
 };
 
 /**
@@ -98,6 +102,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: linkErr.message }, { status: 500 });
   }
 
+  const fxUsdApproxAvailable = isFxUsdEnabled();
+  if (fxUsdApproxAvailable && txns.length > 0) {
+    await applyUsdToAwinUpsertRows(supabase, txns);
+  }
+
   const links = (linkRows ?? []) as unknown as LinkRow[];
 
   const clicksByProgramme = new Map<number, number>();
@@ -121,12 +130,16 @@ export async function GET(request: Request) {
 
   const kpiRevenueByCurrency: Record<string, number> = {};
   const kpiCommissionByCurrency: Record<string, number> = {};
+  let kpiRevenueUsdApprox = 0;
+  let kpiCommissionUsdApprox = 0;
 
   const byAdvertiser = new Map<number, Agg>();
 
   for (const r of txns) {
     addMoney(kpiCommissionByCurrency, r.commission_currency, Number(r.commission_amount ?? 0));
     addMoney(kpiRevenueByCurrency, r.sale_currency, Number(r.sale_amount ?? 0));
+    kpiRevenueUsdApprox += Number(r.sale_amount_usd ?? 0);
+    kpiCommissionUsdApprox += Number(r.commission_amount_usd ?? 0);
 
     const aid = r.advertiser_id;
     if (aid == null || !Number.isFinite(Number(aid))) continue;
@@ -135,10 +148,14 @@ export async function GET(request: Request) {
       sales: 0,
       revenueByCurrency: {},
       commissionByCurrency: {},
+      revenueUsdApprox: 0,
+      commissionUsdApprox: 0,
     };
     cur.sales += 1;
     addMoney(cur.revenueByCurrency, r.sale_currency, Number(r.sale_amount ?? 0));
     addMoney(cur.commissionByCurrency, r.commission_currency, Number(r.commission_amount ?? 0));
+    cur.revenueUsdApprox += Number(r.sale_amount_usd ?? 0);
+    cur.commissionUsdApprox += Number(r.commission_amount_usd ?? 0);
     byAdvertiser.set(id, cur);
   }
 
@@ -155,6 +172,8 @@ export async function GET(request: Request) {
       sales: 0,
       revenueByCurrency: {},
       commissionByCurrency: {},
+      revenueUsdApprox: 0,
+      commissionUsdApprox: 0,
     };
     const slugs = slugsByProgramme.get(advertiserId) ?? [];
     const code = slugs.length <= 2 ? slugs.join(", ") : `${slugs.slice(0, 2).join(", ")} +${slugs.length - 2}`;
@@ -172,6 +191,8 @@ export async function GET(request: Request) {
       leads: 0,
       revenueByCurrency: agg.revenueByCurrency,
       commissionByCurrency: agg.commissionByCurrency,
+      revenueUsdApprox: Math.round(agg.revenueUsdApprox * 1e6) / 1e6,
+      commissionUsdApprox: Math.round(agg.commissionUsdApprox * 1e6) / 1e6,
     };
   });
 
@@ -198,6 +219,8 @@ export async function GET(request: Request) {
   return NextResponse.json({
     from: fromD.toISOString().slice(0, 10),
     to: toD.toISOString().slice(0, 10),
+    /** False when `FX_USD_ENABLED=0` — USD columns are not computed. */
+    fxUsdApproxAvailable,
     /** Same publisher as session; row count of attributed txns in range */
     attributedTransactionCount: txns.length,
     kpis: {
@@ -206,6 +229,8 @@ export async function GET(request: Request) {
       leads: 0,
       revenueByCurrency: kpiRevenueByCurrency,
       commissionByCurrency: kpiCommissionByCurrency,
+      revenueUsdApprox: Math.round(kpiRevenueUsdApprox * 1e6) / 1e6,
+      commissionUsdApprox: Math.round(kpiCommissionUsdApprox * 1e6) / 1e6,
     },
     advertisers,
     diagnostics: {

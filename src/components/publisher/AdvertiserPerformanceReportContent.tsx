@@ -43,6 +43,38 @@ function defaultRangeYmd(): { from: string; to: string } {
   return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
 }
 
+function utcDayStart(d = new Date()): Date {
+  const x = new Date(d);
+  x.setUTCHours(0, 0, 0, 0);
+  return x;
+}
+
+function toUtcYmd(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** Preset ranges use UTC calendar days (same as From/To labels). */
+function datePresetRange(preset: "today" | "yesterday" | "week" | "month"): { from: string; to: string } {
+  const today0 = utcDayStart();
+  if (preset === "today") {
+    const y = toUtcYmd(today0);
+    return { from: y, to: y };
+  }
+  if (preset === "yesterday") {
+    const y0 = new Date(today0);
+    y0.setUTCDate(y0.getUTCDate() - 1);
+    const y = toUtcYmd(y0);
+    return { from: y, to: y };
+  }
+  if (preset === "week") {
+    const from = new Date(today0);
+    from.setUTCDate(from.getUTCDate() - 6);
+    return { from: toUtcYmd(from), to: toUtcYmd(today0) };
+  }
+  const from = new Date(Date.UTC(today0.getUTCFullYear(), today0.getUTCMonth(), 1));
+  return { from: toUtcYmd(from), to: toUtcYmd(today0) };
+}
+
 function formatMoney(n: number, currency: string) {
   try {
     return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
@@ -127,10 +159,7 @@ export default function AdvertiserPerformanceReportContent() {
     const q = filter.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.code.toLowerCase().includes(q) ||
-        String(r.advertiserId).includes(q)
+      (r) => r.name.toLowerCase().includes(q) || String(r.advertiserId).includes(q)
     );
   }, [data, filter]);
 
@@ -169,12 +198,17 @@ export default function AdvertiserPerformanceReportContent() {
 
   const exportCsv = () => {
     if (!data) return;
-    const header = ["Advertiser", "Network", "Code", "Clicks", "Sales", "Leads", "Revenue (by currency)", "Commission (by currency)"];
+    const header = [
+      "Advertiser",
+      "Clicks",
+      "Sales",
+      "Leads",
+      "Revenue (by currency)",
+      "Commission (by currency)",
+    ];
     const lines = filtered.map((r) =>
       [
         `"${r.name.replace(/"/g, '""')}"`,
-        r.network,
-        `"${r.code.replace(/"/g, '""')}"`,
         r.clicks,
         r.sales,
         r.leads,
@@ -188,6 +222,14 @@ export default function AdvertiserPerformanceReportContent() {
   const applyRange = () => {
     setAppliedFrom(from);
     setAppliedTo(to);
+  };
+
+  const applyDatePreset = (preset: "today" | "yesterday" | "week" | "month") => {
+    const { from: f, to: t } = datePresetRange(preset);
+    setFrom(f);
+    setTo(t);
+    setAppliedFrom(f);
+    setAppliedTo(t);
   };
 
   return (
@@ -215,25 +257,54 @@ export default function AdvertiserPerformanceReportContent() {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="flex flex-col gap-1 text-xs text-zinc-500">
-              From (UTC)
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-zinc-500">
-              To (UTC)
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
-              />
-            </label>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-1 text-xs text-zinc-500">
+                From (UTC)
+                <input
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-zinc-500">
+                To (UTC)
+                <input
+                  type="date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50"
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-0.5 text-[11px] uppercase tracking-wide text-zinc-600">Quick</span>
+              {(
+                [
+                  { preset: "today" as const, label: "Today" },
+                  { preset: "yesterday" as const, label: "Yesterday" },
+                  { preset: "week" as const, label: "Week" },
+                  { preset: "month" as const, label: "Month" },
+                ] as const
+              ).map(({ preset, label }) => (
+                <button
+                  key={preset}
+                  type="button"
+                  title={
+                    preset === "week"
+                      ? "Last 7 UTC calendar days (inclusive)"
+                      : preset === "month"
+                        ? "1st of this UTC month through today"
+                        : undefined
+                  }
+                  onClick={() => applyDatePreset(preset)}
+                  className="rounded-lg border border-white/10 bg-zinc-900/80 px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:border-white/20 hover:bg-zinc-800/80 hover:text-white"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -262,11 +333,11 @@ export default function AdvertiserPerformanceReportContent() {
         <span className="font-semibold text-sky-200">Notice · </span>
         Figures are from your LinkHexa account: short-link <strong className="text-white">clicks</strong> per brand, and{" "}
         <strong className="text-white">Awin</strong> rows attributed to you (publisher id or matching link slug in click
-        ref). Payout policy and platform fees are defined in your publisher agreement — not shown as a split here. Multiple
-        currencies are listed separately (no FX conversion).
+        ref). Payout policy and platform fees are defined in your publisher agreement — not shown as a split here. Native
+        currencies are shown per row.
       </div>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {(
           [
             { label: "Total clicks", format: "int" as const, render: () => (data?.kpis.totalClicks ?? 0).toLocaleString() },
@@ -302,25 +373,11 @@ export default function AdvertiserPerformanceReportContent() {
           <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
             <input
               type="search"
-              placeholder="Filter by advertiser or code…"
+              placeholder="Filter by advertiser…"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               className="w-full rounded-xl border border-white/10 bg-zinc-950/80 px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-indigo-500/40 sm:max-w-md"
             />
-            <div className="flex items-center gap-2">
-              <label htmlFor="network-filter" className="sr-only">
-                Network
-              </label>
-              <span className="text-xs text-zinc-500">Network</span>
-              <select
-                id="network-filter"
-                disabled
-                className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-400"
-                title="LinkHexa currently integrates Awin for this report"
-              >
-                <option>All (Awin)</option>
-              </select>
-            </div>
           </div>
           <p className="shrink-0 text-sm text-zinc-500">
             <span className="font-medium text-zinc-300">{filtered.length}</span> advertisers
@@ -328,12 +385,10 @@ export default function AdvertiserPerformanceReportContent() {
         </div>
 
         <div className="mt-5 overflow-x-auto rounded-xl border border-white/5">
-          <table className="w-full min-w-[860px] text-left text-sm">
+          <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
               <tr className="border-b border-white/5 bg-zinc-950/60 text-xs font-semibold uppercase tracking-wider text-zinc-500">
                 <th className="px-4 py-3">Advertiser</th>
-                <th className="px-4 py-3">Network</th>
-                <th className="px-4 py-3">Code</th>
                 <th className="px-4 py-3 text-right">Clicks</th>
                 <th className="px-4 py-3 text-right">Sales</th>
                 <th className="px-4 py-3 text-right">Leads</th>
@@ -345,21 +400,21 @@ export default function AdvertiserPerformanceReportContent() {
             <tbody className="divide-y divide-white/5">
               {loading && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-zinc-500">
+                  <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
                     Loading…
                   </td>
                 </tr>
               )}
               {!loading && error && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-amber-200/90">
+                  <td colSpan={7} className="px-4 py-10 text-center text-amber-200/90">
                     {error}
                   </td>
                 </tr>
               )}
               {!loading && !error && slice.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-zinc-500">
+                  <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
                     No rows match this filter.{" "}
                     <Link href="/dashboard/brands" className="font-medium text-indigo-400 hover:underline">
                       Browse brands
@@ -373,12 +428,6 @@ export default function AdvertiserPerformanceReportContent() {
                 slice.map((r) => (
                   <tr key={r.advertiserId} className="text-zinc-300">
                     <td className="px-4 py-3 font-medium text-zinc-100">{r.name}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex rounded-full border border-violet-500/35 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-200">
-                        {r.network}
-                      </span>
-                    </td>
-                    <td className="max-w-[200px] truncate px-4 py-3 font-mono text-xs text-indigo-200/90">{r.code}</td>
                     <td className="px-4 py-3 text-right font-mono tabular-nums text-white">{r.clicks.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-zinc-300">{r.sales.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-zinc-500">{r.leads}</td>

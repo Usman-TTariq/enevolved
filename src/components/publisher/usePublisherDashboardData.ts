@@ -60,8 +60,7 @@ export function hasLinksButNoMatchingAwinRows(debug: Record<string, unknown>): b
   if (links <= 0) return false;
   const a = Number(debug.awinTransactionsWithYourPublisherId ?? 0);
   const b = Number(debug.awinTransactionsWhereGoLinkSlugInYourSlugs ?? 0);
-  const c = Number(debug.awinTransactionsClickRefContainsFirstSlug ?? 0);
-  return a === 0 && b === 0 && c === 0;
+  return a === 0 && b === 0;
 }
 
 export function sumCommissionRange(

@@ -10,6 +10,8 @@ export type AttributedDbTxnRow = {
   commission_currency: string;
   sale_amount: number;
   sale_currency: string;
+  commission_amount_usd?: number | null;
+  sale_amount_usd?: number | null;
   transaction_date: string;
   click_ref: string | null;
   go_link_slug: string | null;
@@ -22,7 +24,7 @@ const GO_LINK_SLUG_IN_CHUNK = 40;
 const SLUG_TXN_QUERY_CONCURRENCY = 8;
 
 export const ATTRIBUTED_TXN_SELECT =
-  "awin_transaction_id, publisher_id, advertiser_id, commission_status, commission_amount, commission_currency, sale_amount, sale_currency, transaction_date, click_ref, go_link_slug, synced_at";
+  "awin_transaction_id, publisher_id, advertiser_id, commission_status, commission_amount, commission_currency, sale_amount, sale_currency, commission_amount_usd, sale_amount_usd, transaction_date, click_ref, go_link_slug, synced_at";
 
 function twoYearsAgoUtc(): Date {
   const d = new Date();

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { requireAdmin } from "../require-admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -8,6 +8,7 @@ import {
 } from "@/lib/awin/aggregate-from-transactions";
 import { maybeSyncAwinOnAdminDashboardLoad } from "@/lib/awin/dashboard-sync";
 import { isAwinConfigured } from "@/lib/awin/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 function maxCurrencyTotals(map: Record<string, number>): { currency: string | null; amount: number } {
   let best: string | null = null;
@@ -21,6 +22,68 @@ function maxCurrencyTotals(map: Record<string, number>): { currency: string | nu
   return { currency: best, amount: v };
 }
 
+function jsonbToCurrencyMap(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    out[k] = Number(v ?? 0);
+  }
+  return out;
+}
+
+async function loadFinancialsFromRpc(
+  supabase: SupabaseClient
+): Promise<{ commissionByCurrency: Record<string, number>; saleByCurrency: Record<string, number> } | null> {
+  const { data, error } = await supabase.rpc("admin_publisher_earnings_currency_totals");
+  if (error || data == null || typeof data !== "object") return null;
+  const o = data as { commissionByCurrency?: unknown; saleByCurrency?: unknown };
+  return {
+    commissionByCurrency: jsonbToCurrencyMap(o.commissionByCurrency),
+    saleByCurrency: jsonbToCurrencyMap(o.saleByCurrency),
+  };
+}
+
+async function loadWindowTotalsFromRpc(
+  supabase: SupabaseClient,
+  start: Date,
+  end: Date
+): Promise<{
+  countAll: number;
+  countAttributed: number;
+  saleByCurrency: Record<string, number>;
+  commissionByCurrency: Record<string, number>;
+} | null> {
+  const { data, error } = await supabase.rpc("admin_awin_transactions_window_totals", {
+    p_start: start.toISOString(),
+    p_end: end.toISOString(),
+  });
+  if (error || data == null || typeof data !== "object") return null;
+  const o = data as {
+    countAll?: unknown;
+    countAttributed?: unknown;
+    saleByCurrency?: unknown;
+    commissionByCurrency?: unknown;
+  };
+  return {
+    countAll: Number(o.countAll ?? 0),
+    countAttributed: Number(o.countAttributed ?? 0),
+    saleByCurrency: jsonbToCurrencyMap(o.saleByCurrency),
+    commissionByCurrency: jsonbToCurrencyMap(o.commissionByCurrency),
+  };
+}
+
+async function loadAttributedSumsFromRpc(
+  supabase: SupabaseClient
+): Promise<{ commissionByCurrency: Record<string, number>; saleByCurrency: Record<string, number> } | null> {
+  const { data, error } = await supabase.rpc("admin_sum_attributed_awin_by_currency");
+  if (error || data == null || typeof data !== "object") return null;
+  const o = data as { commissionByCurrency?: unknown; saleByCurrency?: unknown };
+  return {
+    commissionByCurrency: jsonbToCurrencyMap(o.commissionByCurrency),
+    saleByCurrency: jsonbToCurrencyMap(o.saleByCurrency),
+  };
+}
+
 export async function GET(request: Request) {
   const err = requireAdmin(request);
   if (err) return err;
@@ -29,9 +92,23 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const forceAwinRefresh = url.searchParams.get("refreshAwin") === "1";
 
-  let awinSyncOnDashboardLoad: { ran: boolean; skippedReason?: string; error?: string } = { ran: false };
+  /** Do not block the dashboard on Awin HTTP + upsert; run after response (Next.js `after`). */
+  let awinSyncOnDashboardLoad: { ran: boolean; skippedReason?: string; error?: string };
   if (isAwinConfigured()) {
-    awinSyncOnDashboardLoad = await maybeSyncAwinOnAdminDashboardLoad(supabase, { force: forceAwinRefresh });
+    after(async () => {
+      try {
+        const sb = createServerSupabaseClient();
+        await maybeSyncAwinOnAdminDashboardLoad(sb, { force: forceAwinRefresh });
+      } catch (e) {
+        console.error("[dashboard-stats] background Awin sync failed", e);
+      }
+    });
+    awinSyncOnDashboardLoad = {
+      ran: false,
+      skippedReason: forceAwinRefresh
+        ? "Awin refresh queued; sync runs in the background. Reload in a minute for updated transactions."
+        : "Awin sync runs in the background when you open the dashboard (throttled). Reload shortly for fresh data.",
+    };
   } else {
     awinSyncOnDashboardLoad = { ran: false, skippedReason: "Awin API not configured on server" };
   }
@@ -76,9 +153,14 @@ export async function GET(request: Request) {
     ]);
 
     let totalClicks = 0;
-    const { data: clickRows, error: clickErr } = await supabase.from("publisher_go_links").select("click_count");
-    if (!clickErr && clickRows) {
-      totalClicks = clickRows.reduce((s, r) => s + Number((r as { click_count?: number | null }).click_count ?? 0), 0);
+    const { data: clickRpc, error: clickRpcErr } = await supabase.rpc("admin_sum_go_link_clicks");
+    if (!clickRpcErr && clickRpc != null && clickRpc !== "") {
+      totalClicks = Number(clickRpc);
+    } else {
+      const { data: clickRows, error: clickErr } = await supabase.from("publisher_go_links").select("click_count");
+      if (!clickErr && clickRows) {
+        totalClicks = clickRows.reduce((s, r) => s + Number((r as { click_count?: number | null }).click_count ?? 0), 0);
+      }
     }
 
     const { data: pendingSignups, error: pendingErr } = await supabase
@@ -94,14 +176,24 @@ export async function GET(request: Request) {
 
     let commissionByCurrency: Record<string, number> = {};
     let saleByCurrency: Record<string, number> = {};
-    const { data: earnRows, error: earnErr } = await supabase
-      .from("publisher_earnings_daily")
-      .select("currency, commission_total, sale_total");
-    if (!earnErr && earnRows && Array.isArray(earnRows)) {
-      for (const r of earnRows as { currency?: string; commission_total?: number | string | null; sale_total?: number | string | null }[]) {
-        const cur = (r.currency ?? "GBP").toUpperCase();
-        commissionByCurrency[cur] = (commissionByCurrency[cur] ?? 0) + Number(r.commission_total ?? 0);
-        saleByCurrency[cur] = (saleByCurrency[cur] ?? 0) + Number(r.sale_total ?? 0);
+    const rpcFinancials = await loadFinancialsFromRpc(supabase);
+    if (rpcFinancials) {
+      commissionByCurrency = rpcFinancials.commissionByCurrency;
+      saleByCurrency = rpcFinancials.saleByCurrency;
+    } else {
+      const { data: earnRows, error: earnErr } = await supabase
+        .from("publisher_earnings_daily")
+        .select("currency, commission_total, sale_total");
+      if (!earnErr && earnRows && Array.isArray(earnRows)) {
+        for (const r of earnRows as {
+          currency?: string;
+          commission_total?: number | string | null;
+          sale_total?: number | string | null;
+        }[]) {
+          const cur = (r.currency ?? "GBP").toUpperCase();
+          commissionByCurrency[cur] = (commissionByCurrency[cur] ?? 0) + Number(r.commission_total ?? 0);
+          saleByCurrency[cur] = (saleByCurrency[cur] ?? 0) + Number(r.sale_total ?? 0);
+        }
       }
     }
 
@@ -118,10 +210,17 @@ export async function GET(request: Request) {
     const rollupCommissionSum = Object.values(commissionByCurrency).reduce((a, b) => a + b, 0);
     let financialsSource: "rollup" | "awin_transactions" = "rollup";
     if (rollupCommissionSum === 0 && awinTxnAttributed > 0) {
-      const live = await sumAttributedAwinByCurrency(supabase);
-      commissionByCurrency = live.commissionByCurrency;
-      saleByCurrency = live.saleByCurrency;
-      financialsSource = "awin_transactions";
+      const liveRpc = await loadAttributedSumsFromRpc(supabase);
+      if (liveRpc) {
+        commissionByCurrency = liveRpc.commissionByCurrency;
+        saleByCurrency = liveRpc.saleByCurrency;
+        financialsSource = "awin_transactions";
+      } else {
+        const live = await sumAttributedAwinByCurrency(supabase);
+        commissionByCurrency = live.commissionByCurrency;
+        saleByCurrency = live.saleByCurrency;
+        financialsSource = "awin_transactions";
+      }
     }
 
     const { data: syncRow } = await supabase
@@ -131,7 +230,10 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     const win30 = rollingUtcWindowDays(30);
-    const agg30 = await aggregateAwinTransactionsInRange(supabase, win30.start, win30.end);
+    let agg30 = await loadWindowTotalsFromRpc(supabase, win30.start, win30.end);
+    if (!agg30) {
+      agg30 = await aggregateAwinTransactionsInRange(supabase, win30.start, win30.end);
+    }
     const saleTop = maxCurrencyTotals(agg30.saleByCurrency);
     const commTop = maxCurrencyTotals(agg30.commissionByCurrency);
 
@@ -170,8 +272,7 @@ export async function GET(request: Request) {
         totalPublisherPayoutUsd: totalUsdCommission,
         totalGrossOnLinksUsd: totalUsdSale > 0 ? totalUsdSale : null,
         primaryCurrency,
-        primaryCommission:
-          primaryCurrency != null ? (commissionByCurrency[primaryCurrency] ?? 0) : 0,
+        primaryCommission: primaryCurrency != null ? (commissionByCurrency[primaryCurrency] ?? 0) : 0,
         primarySale: primaryCurrency != null ? (saleByCurrency[primaryCurrency] ?? 0) : 0,
         /** `rollup` = publisher_earnings_daily; `awin_transactions` = live sum when rollup was empty but attributed rows exist */
         source: financialsSource,

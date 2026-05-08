@@ -4,7 +4,7 @@ import Link from "next/link";
 import { type ReactNode } from "react";
 
 const base =
-  "relative inline-flex items-center justify-center gap-2 border-2 border-white bg-transparent px-8 py-3.5 text-sm font-semibold uppercase tracking-widest text-white transition-all duration-300 hover:border-transparent hover:bg-zinc-200 hover:text-black";
+  "relative inline-flex items-center justify-center gap-2 border-2 border-[#1f006a] bg-transparent px-8 py-3.5 text-sm font-semibold uppercase tracking-widest text-[#1f006a] transition-all duration-300 hover:border-[#1f006a] hover:bg-[#1f006a] hover:text-white";
 
 /* Outward-pointing triangular tabs on hover (CSS border trick) */
 const triangleStyles = `
@@ -22,13 +22,13 @@ const triangleStyles = `
   .btn-triangle-tabs::before {
     left: 0;
     border-width: 10px 14px 10px 0;
-    border-color: transparent #27272a transparent transparent;
+    border-color: transparent #1f006a transparent transparent;
     transform: translate(-100%, -50%);
   }
   .btn-triangle-tabs::after {
     right: 0;
     border-width: 10px 0 10px 14px;
-    border-color: transparent transparent transparent #27272a;
+    border-color: transparent transparent transparent #1f006a;
     transform: translate(100%, -50%);
   }
   .btn-triangle-tabs:hover::before,

@@ -275,7 +275,7 @@ export default function PublisherDashboardDetailedContent() {
               )}
               {earningsReconcileError && (
                 <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100/90" role="status">
-                  Raw transaction reconcile failed (showing rollup only): {earningsReconcileError}
+                  Raw transaction read failed (earnings left on daily rollup if present): {earningsReconcileError}
                 </p>
               )}
               {earningsDebug && (
@@ -293,35 +293,22 @@ export default function PublisherDashboardDetailedContent() {
                   <p className="font-semibold text-amber-200">What the zeros mean</p>
                   <p className="mt-2 text-xs leading-relaxed text-amber-100/90">
                     You have <strong className="text-white">{Number(earningsDebug.yourPublisherGoLinks)}</strong> tracking
-                    links and LinkHexa is counting <strong className="text-white">clicks</strong> on them. But in{" "}
-                    <strong className="text-white">this</strong> Supabase project, table{" "}
-                    <code className="rounded bg-black/25 px-1 font-mono text-[11px]">awin_transactions</code> currently has{" "}
-                    <strong className="text-white">no rows</strong> where either your{" "}
-                    <code className="font-mono text-[11px]">publisher_id</code> matches, or{" "}
-                    <code className="font-mono text-[11px]">go_link_slug</code> /{" "}
-                    <code className="font-mono text-[11px]">click_ref</code> matches your slugs. The chart and money totals only
-                    come from those synced Awin sale rows — not from click counts.
+                    links and LinkHexa is counting <strong className="text-white">clicks</strong> on them. In{" "}
+                    <strong className="text-white">this</strong> Supabase project,{" "}
+                    <code className="rounded bg-black/25 px-1 font-mono text-[11px]">awin_transactions</code> currently shows{" "}
+                    <strong className="text-white">no rows</strong> attributed to you (
+                    <code className="font-mono text-[11px]">publisher_id</code>) and none with your{" "}
+                    <code className="font-mono text-[11px]">go_link_slug</code> values in the sample check. Chart and money
+                    totals come from synced Awin rows (and the daily rollup), not from click counts alone.
                   </p>
                   <p className="mt-2 text-xs leading-relaxed text-amber-100/90">
                     <strong className="text-white">Next step:</strong> run{" "}
-                    <strong className="text-white">Admin → Awin → Actions (sync transactions)</strong> against this same
-                    database (valid <code className="font-mono text-[11px]">AWIN_API_TOKEN</code> / publisher id in env).
-                    After a successful sync, the diagnostic counts above should become non‑zero. If{" "}
-                    <code className="rounded bg-black/25 px-1 font-mono text-[11px]">
-                      awinTransactionsTotalRowsInDatabase
-                    </code>{" "}
-                    is <strong className="text-white">0</strong>, nothing has been synced for <em>anyone</em> yet — fix env
-                    and sync first.
+                    <strong className="text-white">Admin → Awin → Actions (sync transactions)</strong> on this database (valid{" "}
+                    <code className="font-mono text-[11px]">AWIN_API_TOKEN</code> / publisher id in env). After sync, reopen
+                    diagnostics — counts should move off zero. Use{" "}
+                    <code className="rounded bg-black/25 px-1 font-mono text-[11px]">?reconcile=1</code> on the earnings API
+                    only if you need a slow full re-read from raw transactions while debugging.
                   </p>
-                  {typeof earningsDebug.awinTransactionsTotalRowsInDatabase === "number" && (
-                    <p className="mt-2 font-mono text-[11px] text-amber-200/80">
-                      awin_transactions (entire table):{" "}
-                      <strong className="text-white">
-                        {Number(earningsDebug.awinTransactionsTotalRowsInDatabase).toLocaleString()}
-                      </strong>{" "}
-                      rows
-                    </p>
-                  )}
                 </div>
               )}
               <div className="mt-6 border-t border-white/5 pt-4">

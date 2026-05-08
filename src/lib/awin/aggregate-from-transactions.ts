@@ -175,26 +175,27 @@ export async function publisherEarningsFromTransactions(
       }
     }
 
-    /** Click ref often holds URL or variant text without `go_link_slug` set — one ilike per slug. */
-    for (let i = 0; i < uniqueSlugs.length; i += SLUG_TXN_QUERY_CONCURRENCY) {
-      const slice = uniqueSlugs.slice(i, i + SLUG_TXN_QUERY_CONCURRENCY);
-      const pages = await Promise.all(
-        slice.map((s) =>
-          supabase
-            .from("awin_transactions")
-            .select(
-              "awin_transaction_id, publisher_id, go_link_slug, click_ref, transaction_date, commission_currency, commission_amount, sale_currency, sale_amount"
-            )
-            .gte("transaction_date", fromIso)
-            .ilike("click_ref", `%${s}%`)
-        )
-      );
-      for (const { data, error } of pages) {
-        if (error) continue;
-        for (const r of data ?? []) {
-          const row = r as EarningsTxnRow;
-          merged.set(String(row.awin_transaction_id), row);
+    /** Exact `click_ref` match (paginated). Avoids per-slug `ilike '%…%'` full-table scans. */
+    for (let c = 0; c < uniqueSlugs.length; c += GO_LINK_SLUG_IN_CHUNK) {
+      const inChunk = uniqueSlugs.slice(c, c + GO_LINK_SLUG_IN_CHUNK);
+      let inOff = 0;
+      while (inOff < MAX_ROWS) {
+        const { data, error } = await supabase
+          .from("awin_transactions")
+          .select(
+            "awin_transaction_id, publisher_id, go_link_slug, click_ref, transaction_date, commission_currency, commission_amount, sale_currency, sale_amount"
+          )
+          .gte("transaction_date", fromIso)
+          .in("click_ref", inChunk)
+          .order("transaction_date", { ascending: true })
+          .range(inOff, inOff + PAGE - 1);
+
+        if (error || !data?.length) break;
+        for (const r of data as EarningsTxnRow[]) {
+          merged.set(String(r.awin_transaction_id), r);
         }
+        inOff += PAGE;
+        if (data.length < PAGE) break;
       }
     }
   }

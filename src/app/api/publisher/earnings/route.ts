@@ -17,8 +17,19 @@ function startDateUtc(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+function rollupHasNonZeroActivity(list: { commission_total: unknown; sale_total: unknown; txn_count: unknown }[]): boolean {
+  return list.some(
+    (r) =>
+      Number(r.commission_total ?? 0) !== 0 ||
+      Number(r.sale_total ?? 0) !== 0 ||
+      Number(r.txn_count ?? 0) !== 0
+  );
+}
+
 /**
  * Fast read from `publisher_earnings_daily` (populated by Awin sync).
+ * Live rebuild from `awin_transactions` runs only when the rollup window looks empty (all zeros)
+ * or when `reconcile=1` is passed (forces raw sync parity; slower on large histories).
  */
 export async function GET(request: Request) {
   const pub = await requireApprovedPublisher();
@@ -29,6 +40,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const days = parseDays(searchParams.get("days"));
   const from = startDateUtc(days);
+  const forceReconcile = searchParams.get("reconcile") === "1";
 
   const supabase = createServerSupabaseClient();
   const { data: rows, error } = await supabase
@@ -86,56 +98,50 @@ export async function GET(request: Request) {
 
   series.sort((a, b) => a.date.localeCompare(b.date) || a.currency.localeCompare(b.currency));
 
-  /** Rebuild from `awin_transactions` whenever there is activity (slug-matched or attributed). Overrides rollup so the dashboard matches raw sync data. */
-  try {
-    const live = await publisherEarningsFromTransactions(supabase, pub.userId, from);
-    const liveCommissionSum = Object.values(live.commissionByCurrency).reduce((a, b) => a + b, 0);
-    if (live.totalTxns > 0 || liveCommissionSum > 0) {
-      series = live.series;
-      commissionByCurrency = live.commissionByCurrency;
-      saleByCurrency = live.saleByCurrency;
-      totalTxns = live.totalTxns;
-      source = "awin_transactions";
+  const shouldReconcileFromTransactions = forceReconcile || !rollupHasNonZeroActivity(list);
+
+  if (shouldReconcileFromTransactions) {
+    try {
+      const live = await publisherEarningsFromTransactions(supabase, pub.userId, from);
+      const liveCommissionSum = Object.values(live.commissionByCurrency).reduce((a, b) => a + b, 0);
+      if (live.totalTxns > 0 || liveCommissionSum > 0) {
+        series = live.series;
+        commissionByCurrency = live.commissionByCurrency;
+        saleByCurrency = live.saleByCurrency;
+        totalTxns = live.totalTxns;
+        source = "awin_transactions";
+      }
+    } catch (e) {
+      reconcileError = e instanceof Error ? e.message : "Could not read transactions for earnings";
     }
-  } catch (e) {
-    reconcileError = e instanceof Error ? e.message : "Could not read transactions for earnings";
   }
 
   let debug: Record<string, unknown> | undefined;
   if (searchParams.get("debug") === "1") {
-    const [{ count: attributed }, { count: linkRows }, slugRes, { count: totalAnyPublisher }] = await Promise.all([
+    const [{ count: attributed }, { count: linkRows }, slugRes] = await Promise.all([
       supabase.from("awin_transactions").select("*", { count: "exact", head: true }).eq("publisher_id", pub.userId),
       supabase.from("publisher_go_links").select("*", { count: "exact", head: true }).eq("publisher_id", pub.userId),
       supabase.from("publisher_go_links").select("slug").eq("publisher_id", pub.userId).limit(100),
-      supabase.from("awin_transactions").select("*", { count: "exact", head: true }),
     ]);
     const slugs = [...new Set((slugRes.data ?? []).map((x: { slug?: string }) => String(x.slug ?? "").trim()).filter(Boolean))];
     let txnAnyGoSlugCol = 0 as number;
-    let txnClickRefLikeFirstSlug = 0 as number;
     if (slugs.length > 0) {
       const { count } = await supabase
         .from("awin_transactions")
         .select("*", { count: "exact", head: true })
         .in("go_link_slug", slugs.slice(0, 40));
       txnAnyGoSlugCol = count ?? 0;
-      const first = slugs[0]!;
-      const { count: c2 } = await supabase
-        .from("awin_transactions")
-        .select("*", { count: "exact", head: true })
-        .ilike("click_ref", `%${first}%`);
-      txnClickRefLikeFirstSlug = c2 ?? 0;
     }
     debug = {
       awinTransactionsWithYourPublisherId: attributed ?? 0,
       yourPublisherGoLinks: linkRows ?? 0,
       awinTransactionsWhereGoLinkSlugInYourSlugs: txnAnyGoSlugCol,
-      awinTransactionsClickRefContainsFirstSlug: txnClickRefLikeFirstSlug,
-      firstSlugUsedForClickRefProbe: slugs[0] ?? null,
       slugSample: slugs.slice(0, 5),
-      /** If 0, nothing has been synced into this DB yet (or wrong Supabase project). */
-      awinTransactionsTotalRowsInDatabase: totalAnyPublisher ?? 0,
       responseSource: source,
       reconcileError,
+      rollupHadNonZeroActivity: rollupHasNonZeroActivity(list),
+      liveReconcileRan: shouldReconcileFromTransactions,
+      reconcileForced: forceReconcile,
     };
   }
 

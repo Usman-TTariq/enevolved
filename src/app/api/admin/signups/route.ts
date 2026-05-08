@@ -5,6 +5,7 @@ import {
   payoutAndSaleForPublisherIdsFromTransactions,
   slugLinkedPayoutAndSaleForPublisherIds,
 } from "@/lib/awin/aggregate-from-transactions";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 function parseNonNegativeInt(raw: string | null, fallback: number): number {
   const n = Number(raw ?? "");
@@ -27,6 +28,169 @@ function mergeCurrencyMaps(a: Record<string, number>, b: Record<string, number>)
     out[k] = (out[k] ?? 0) + v;
   }
   return out;
+}
+
+type DailyRpcRow = {
+  publisher_id: string;
+  currency: string | null;
+  commission_total: number | string | null;
+  sale_total: number | string | null;
+};
+
+type AwinLineRpcRow = {
+  publisher_id: string;
+  kind: string | null;
+  currency: string | null;
+  amount: number | string | null;
+};
+
+function addLineToMap(
+  map: Map<string, Record<string, number>>,
+  publisherId: string,
+  currency: string,
+  amount: number
+): void {
+  const prev = map.get(publisherId) ?? {};
+  prev[currency] = (prev[currency] ?? 0) + amount;
+  map.set(publisherId, prev);
+}
+
+/**
+ * Fast path: SQL aggregates (see migration admin_signups_* RPCs). Returns null if RPCs are missing or error.
+ */
+async function loadPublisherFinancialsFromRpc(
+  supabase: SupabaseClient,
+  publisherIds: string[]
+): Promise<{
+  payoutByPublisher: Map<string, Record<string, number>>;
+  salesByPublisher: Map<string, Record<string, number>>;
+} | null> {
+  const [dailyRes, directRes, slugRes] = await Promise.all([
+    supabase.rpc("admin_signups_daily_by_pub_currency", { p_publisher_ids: publisherIds }),
+    supabase.rpc("admin_signups_awin_direct_lines", { p_publisher_ids: publisherIds }),
+    supabase.rpc("admin_signups_awin_slug_null_pub_lines", { p_publisher_ids: publisherIds }),
+  ]);
+  if (dailyRes.error || directRes.error || slugRes.error) {
+    return null;
+  }
+
+  const rollupPayout = new Map<string, Record<string, number>>();
+  const rollupSale = new Map<string, Record<string, number>>();
+  for (const r of (dailyRes.data ?? []) as DailyRpcRow[]) {
+    const pid = String(r.publisher_id);
+    const cur = (r.currency ?? "GBP").toUpperCase();
+    addLineToMap(rollupPayout, pid, cur, Number(r.commission_total ?? 0));
+    addLineToMap(rollupSale, pid, cur, Number(r.sale_total ?? 0));
+  }
+
+  const directPayout = new Map<string, Record<string, number>>();
+  const directSale = new Map<string, Record<string, number>>();
+  for (const r of (directRes.data ?? []) as AwinLineRpcRow[]) {
+    const pid = String(r.publisher_id);
+    const cur = (r.currency ?? "GBP").toUpperCase();
+    const amt = Number(r.amount ?? 0);
+    if ((r.kind ?? "").toLowerCase() === "commission") addLineToMap(directPayout, pid, cur, amt);
+    else if ((r.kind ?? "").toLowerCase() === "sale") addLineToMap(directSale, pid, cur, amt);
+  }
+
+  const slugPayout = new Map<string, Record<string, number>>();
+  const slugSale = new Map<string, Record<string, number>>();
+  for (const r of (slugRes.data ?? []) as AwinLineRpcRow[]) {
+    const pid = String(r.publisher_id);
+    const cur = (r.currency ?? "GBP").toUpperCase();
+    const amt = Number(r.amount ?? 0);
+    if ((r.kind ?? "").toLowerCase() === "commission") addLineToMap(slugPayout, pid, cur, amt);
+    else if ((r.kind ?? "").toLowerCase() === "sale") addLineToMap(slugSale, pid, cur, amt);
+  }
+
+  const payoutByPublisher = new Map<string, Record<string, number>>();
+  const salesByPublisher = new Map<string, Record<string, number>>();
+
+  for (const pid of publisherIds) {
+    const rp = rollupPayout.get(pid) ?? {};
+    const rs = rollupSale.get(pid) ?? {};
+    if (sumCurrencyMap(rp) + sumCurrencyMap(rs) > 0) {
+      payoutByPublisher.set(pid, { ...rp });
+      salesByPublisher.set(pid, { ...rs });
+      continue;
+    }
+    const mergedP = mergeCurrencyMaps(directPayout.get(pid) ?? {}, slugPayout.get(pid) ?? {});
+    const mergedS = mergeCurrencyMaps(directSale.get(pid) ?? {}, slugSale.get(pid) ?? {});
+    if (sumCurrencyMap(mergedP) + sumCurrencyMap(mergedS) > 0) {
+      payoutByPublisher.set(pid, mergedP);
+      salesByPublisher.set(pid, mergedS);
+    }
+  }
+
+  return { payoutByPublisher, salesByPublisher };
+}
+
+async function loadPublisherFinancialsLegacy(
+  supabase: SupabaseClient,
+  publisherIds: string[]
+): Promise<{ payoutByPublisher: Map<string, Record<string, number>>; salesByPublisher: Map<string, Record<string, number>> }> {
+  const payoutByPublisher = new Map<string, Record<string, number>>();
+  const salesByPublisher = new Map<string, Record<string, number>>();
+
+  const { data: rollupRows, error: rollupError } = await supabase
+    .from("publisher_earnings_daily")
+    .select("publisher_id, currency, commission_total, sale_total")
+    .in("publisher_id", publisherIds);
+
+  if (rollupError) {
+    throw new Error(rollupError.message);
+  }
+
+  type RollupRow = {
+    publisher_id: string;
+    currency: string | null;
+    commission_total: number | string | null;
+    sale_total: number | string | null;
+  };
+  for (const r of (rollupRows ?? []) as RollupRow[]) {
+    const pid = r.publisher_id;
+    if (!pid) continue;
+    const cur = (r.currency ?? "GBP").toUpperCase();
+    const payoutPrev = payoutByPublisher.get(pid) ?? {};
+    payoutPrev[cur] = (payoutPrev[cur] ?? 0) + Number(r.commission_total ?? 0);
+    payoutByPublisher.set(pid, payoutPrev);
+    const salePrev = salesByPublisher.get(pid) ?? {};
+    salePrev[cur] = (salePrev[cur] ?? 0) + Number(r.sale_total ?? 0);
+    salesByPublisher.set(pid, salePrev);
+  }
+
+  let liveByPub: Awaited<ReturnType<typeof payoutAndSaleForPublisherIdsFromTransactions>> | null = null;
+  let slugByPub: Awaited<ReturnType<typeof slugLinkedPayoutAndSaleForPublisherIds>> | null = null;
+  const ensureTxnFallbacks = async () => {
+    if (liveByPub && slugByPub) return;
+    const [live, slug] = await Promise.all([
+      payoutAndSaleForPublisherIdsFromTransactions(supabase, publisherIds),
+      slugLinkedPayoutAndSaleForPublisherIds(supabase, publisherIds),
+    ]);
+    liveByPub = live;
+    slugByPub = slug;
+  };
+
+  for (const pid of publisherIds) {
+    const rp = payoutByPublisher.get(pid) ?? {};
+    const rs = salesByPublisher.get(pid) ?? {};
+    if (sumCurrencyMap(rp) + sumCurrencyMap(rs) > 0) continue;
+    await ensureTxnFallbacks();
+    const mergedP = mergeCurrencyMaps(
+      liveByPub!.payoutByPublisher.get(pid) ?? {},
+      slugByPub!.payoutByPublisher.get(pid) ?? {}
+    );
+    const mergedS = mergeCurrencyMaps(
+      liveByPub!.saleByPublisher.get(pid) ?? {},
+      slugByPub!.saleByPublisher.get(pid) ?? {}
+    );
+    if (sumCurrencyMap(mergedP) + sumCurrencyMap(mergedS) > 0) {
+      payoutByPublisher.set(pid, mergedP);
+      salesByPublisher.set(pid, mergedS);
+    }
+  }
+
+  return { payoutByPublisher, salesByPublisher };
 }
 
 export async function GET(request: Request) {
@@ -53,66 +217,22 @@ export async function GET(request: Request) {
     const pageProfiles = (data ?? []) as { id: string; role?: string | null }[];
     const publisherIds = pageProfiles.filter((p) => p.role === "publisher").map((p) => p.id);
 
-    const payoutByPublisher = new Map<string, Record<string, number>>();
-    const salesByPublisher = new Map<string, Record<string, number>>();
+    let payoutByPublisher = new Map<string, Record<string, number>>();
+    let salesByPublisher = new Map<string, Record<string, number>>();
 
-    // Only aggregate rollups for publishers on the current page.
     if (publisherIds.length > 0) {
-      const { data: rollupRows, error: rollupError } = await supabase
-        .from("publisher_earnings_daily")
-        .select("publisher_id, currency, commission_total, sale_total")
-        .in("publisher_id", publisherIds);
-
-      if (rollupError) {
-        return NextResponse.json({ error: rollupError.message }, { status: 500 });
-      }
-
-      type RollupRow = {
-        publisher_id: string;
-        currency: string | null;
-        commission_total: number | string | null;
-        sale_total: number | string | null;
-      };
-      for (const r of (rollupRows ?? []) as RollupRow[]) {
-        const pid = r.publisher_id;
-        if (!pid) continue;
-        const cur = (r.currency ?? "GBP").toUpperCase();
-        const payoutPrev = payoutByPublisher.get(pid) ?? {};
-        payoutPrev[cur] = (payoutPrev[cur] ?? 0) + Number(r.commission_total ?? 0);
-        payoutByPublisher.set(pid, payoutPrev);
-        const salePrev = salesByPublisher.get(pid) ?? {};
-        salePrev[cur] = (salePrev[cur] ?? 0) + Number(r.sale_total ?? 0);
-        salesByPublisher.set(pid, salePrev);
-      }
-
-      let liveByPub: Awaited<ReturnType<typeof payoutAndSaleForPublisherIdsFromTransactions>> | null = null;
-      let slugByPub: Awaited<ReturnType<typeof slugLinkedPayoutAndSaleForPublisherIds>> | null = null;
-      const ensureTxnFallbacks = async () => {
-        if (liveByPub && slugByPub) return;
-        const [live, slug] = await Promise.all([
-          payoutAndSaleForPublisherIdsFromTransactions(supabase, publisherIds),
-          slugLinkedPayoutAndSaleForPublisherIds(supabase, publisherIds),
-        ]);
-        liveByPub = live;
-        slugByPub = slug;
-      };
-
-      for (const pid of publisherIds) {
-        const rp = payoutByPublisher.get(pid) ?? {};
-        const rs = salesByPublisher.get(pid) ?? {};
-        if (sumCurrencyMap(rp) + sumCurrencyMap(rs) > 0) continue;
-        await ensureTxnFallbacks();
-        const mergedP = mergeCurrencyMaps(
-          liveByPub!.payoutByPublisher.get(pid) ?? {},
-          slugByPub!.payoutByPublisher.get(pid) ?? {}
-        );
-        const mergedS = mergeCurrencyMaps(
-          liveByPub!.saleByPublisher.get(pid) ?? {},
-          slugByPub!.saleByPublisher.get(pid) ?? {}
-        );
-        if (sumCurrencyMap(mergedP) + sumCurrencyMap(mergedS) > 0) {
-          payoutByPublisher.set(pid, mergedP);
-          salesByPublisher.set(pid, mergedS);
+      const fromRpc = await loadPublisherFinancialsFromRpc(supabase, publisherIds);
+      if (fromRpc) {
+        payoutByPublisher = fromRpc.payoutByPublisher;
+        salesByPublisher = fromRpc.salesByPublisher;
+      } else {
+        try {
+          const legacy = await loadPublisherFinancialsLegacy(supabase, publisherIds);
+          payoutByPublisher = legacy.payoutByPublisher;
+          salesByPublisher = legacy.salesByPublisher;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "Server error";
+          return NextResponse.json({ error: msg }, { status: 500 });
         }
       }
     }
@@ -124,7 +244,7 @@ export async function GET(request: Request) {
     }));
 
     return NextResponse.json({ signups, total: count ?? 0, limit, offset });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

@@ -32,51 +32,10 @@ const socials = [
 
 export default function Footer() {
   return (
-    <footer className="relative overflow-hidden border-t border-white/5 py-12 sm:py-16">
-      {/* Purple spots + faded Link / Hexa (same as HowItWorks, TrustAndPartnerships) */}
+    <footer className="relative overflow-hidden border-t border-neutral-200 bg-neutral-50/90 py-12 sm:py-16">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-32 top-1/4 h-[350px] w-[350px] rounded-full bg-indigo-500/20 blur-[120px]" />
-        <div className="absolute left-0 top-1/2 h-[280px] w-[280px] rounded-full bg-violet-500/15 blur-[100px]" />
-        <div className="absolute -right-32 top-1/3 h-[350px] w-[350px] rounded-full bg-indigo-500/15 blur-[120px]" />
-        <div className="absolute right-0 bottom-1/3 h-[280px] w-[280px] rounded-full bg-violet-500/12 blur-[100px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_80%_at_0%_50%,rgba(99,102,241,0.1),transparent)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_50%_80%_at_100%_50%,rgba(99,102,241,0.08),transparent)]" />
-        <div
-          className="absolute left-0 top-0 hidden h-full w-[min(28%,220px)] items-center pl-4 sm:flex sm:pl-6 md:pl-8"
-          style={{
-            maskImage: "linear-gradient(to right, black 20%, transparent 100%)",
-            WebkitMaskImage: "linear-gradient(to right, black 20%, transparent 100%)",
-          }}
-        >
-          <span
-            className="text-5xl font-bold tracking-tight text-black sm:text-6xl md:text-7xl"
-            style={{
-              fontFamily: "var(--font-libre-baskerville), serif",
-              letterSpacing: "-0.03em",
-              opacity: 0.35,
-            }}
-          >
-            Link
-          </span>
-        </div>
-        <div
-          className="absolute right-0 top-0 hidden h-full w-[min(28%,220px)] items-center justify-end pr-4 sm:flex sm:pr-6 md:pr-8"
-          style={{
-            maskImage: "linear-gradient(to left, black 20%, transparent 100%)",
-            WebkitMaskImage: "linear-gradient(to left, black 20%, transparent 100%)",
-          }}
-        >
-          <span
-            className="text-5xl font-bold tracking-tight text-black sm:text-6xl md:text-7xl"
-            style={{
-              fontFamily: "var(--font-libre-baskerville), serif",
-              letterSpacing: "-0.03em",
-              opacity: 0.35,
-            }}
-          >
-            Hexa
-          </span>
-        </div>
+        <div className="absolute -left-20 top-0 h-[240px] w-[240px] rounded-full bg-violet-200/40 blur-[80px]" />
+        <div className="absolute -right-16 bottom-0 h-[200px] w-[200px] rounded-full bg-violet-100/50 blur-[70px]" />
       </div>
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -91,7 +50,7 @@ export default function Footer() {
                 className="h-8 w-auto sm:h-9"
               />
             </Link>
-            <p className="mx-auto mt-3 max-w-xs text-sm text-zinc-500 sm:mx-0 sm:mt-4">
+            <p className="mx-auto mt-3 max-w-xs text-sm text-neutral-600 sm:mx-0 sm:mt-4">
               The leading affiliate marketing platform connecting publishers and merchants worldwide.
             </p>
             <div className="mt-5 flex justify-center gap-3 sm:justify-start sm:mt-6">
@@ -100,7 +59,7 @@ export default function Footer() {
                   key={s.name}
                   href={s.href}
                   aria-label={s.name}
-                  className="rounded-lg border border-white/10 bg-white/5 p-2.5 text-zinc-400 transition-colors hover:border-white/20 hover:text-white"
+                  className="rounded-lg border border-neutral-200 bg-white p-2.5 text-neutral-600 transition-colors hover:border-violet-300 hover:text-[#1f006a]"
                 >
                   {s.icon}
                 </a>
@@ -108,13 +67,13 @@ export default function Footer() {
             </div>
           </div>
           <div className="text-center sm:text-left">
-            <h3 className="text-sm font-semibold text-white">Explore More</h3>
+            <h3 className="text-sm font-semibold text-neutral-900">Explore More</h3>
             <ul className="mt-4 space-y-3">
               {exploreMore.map((link) => (
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className="text-sm text-zinc-500 transition-colors hover:text-white"
+                    className="text-sm text-neutral-600 transition-colors hover:text-[#1f006a]"
                   >
                     {link.label}
                   </Link>
@@ -123,7 +82,7 @@ export default function Footer() {
             </ul>
           </div>
           <div className="text-center sm:text-left">
-            <h3 className="text-sm font-semibold text-white">Legal Information</h3>
+            <h3 className="text-sm font-semibold text-neutral-900">Legal Information</h3>
             <ul className="mt-4 space-y-3">
               {legalInfo.map((link) => (
                 <li key={link.label}>
@@ -132,14 +91,14 @@ export default function Footer() {
                       href={link.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-zinc-500 transition-colors hover:text-white"
+                      className="text-sm text-neutral-600 transition-colors hover:text-[#1f006a]"
                     >
                       {link.label}
                     </a>
                   ) : (
                     <Link
                       href={link.href}
-                      className="text-sm text-zinc-500 transition-colors hover:text-white"
+                      className="text-sm text-neutral-600 transition-colors hover:text-[#1f006a]"
                     >
                       {link.label}
                     </Link>
@@ -149,25 +108,25 @@ export default function Footer() {
             </ul>
           </div>
           <div className="text-center sm:text-left">
-            <h3 className="text-sm font-semibold text-white">Get Support</h3>
-            <ul className="mt-4 space-y-3 text-xs text-zinc-500 sm:text-sm">
+            <h3 className="text-sm font-semibold text-neutral-900">Get Support</h3>
+            <ul className="mt-4 space-y-3 text-xs text-neutral-600 sm:text-sm">
               <li>
-                <a href="mailto:partner@linkhexa.com" className="break-all transition-colors hover:text-white">
+                <a href="mailto:partner@linkhexa.com" className="break-all transition-colors hover:text-[#1f006a]">
                   partner@linkhexa.com
                 </a>
               </li>
               <li>
-                <a href="mailto:support@linkhexa.com" className="break-all transition-colors hover:text-white">
+                <a href="mailto:support@linkhexa.com" className="break-all transition-colors hover:text-[#1f006a]">
                   support@linkhexa.com
                 </a>
               </li>
               <li>
-                <a href="mailto:legal@linkhexa.com" className="break-all transition-colors hover:text-white">
+                <a href="mailto:legal@linkhexa.com" className="break-all transition-colors hover:text-[#1f006a]">
                   legal@linkhexa.com
                 </a>
               </li>
               <li>
-                <a href="tel:+15108631830" className="transition-colors hover:text-white">
+                <a href="tel:+15108631830" className="transition-colors hover:text-[#1f006a]">
                   +1 510 863 1830
                 </a>
               </li>
@@ -178,7 +137,7 @@ export default function Footer() {
             </ul>
           </div>
         </div>
-        <div className="mt-12 border-t border-white/5 pt-6 text-center text-xs text-zinc-500 sm:mt-16 sm:pt-8 sm:text-sm">
+        <div className="mt-12 border-t border-neutral-200 pt-6 text-center text-xs text-neutral-500 sm:mt-16 sm:pt-8 sm:text-sm">
           © {new Date().getFullYear()} LinkHexa. All rights reserved.
         </div>
       </div>

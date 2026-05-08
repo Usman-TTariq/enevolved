@@ -31,7 +31,7 @@ const testimonials = [
 
 export default function Testimonials() {
   return (
-    <section className="relative py-16 sm:py-24 lg:py-32">
+    <section className="relative bg-white py-16 sm:py-24 lg:py-32">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -39,13 +39,13 @@ export default function Testimonials() {
           viewport={{ once: true }}
           className="mx-auto max-w-2xl text-center"
         >
-          <p className="text-xs font-medium uppercase tracking-widest text-indigo-400 sm:text-sm">
+          <p className="text-xs font-medium uppercase tracking-widest text-[#1f006a] sm:text-sm">
             Testimonials
           </p>
-          <h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:mt-4 sm:text-3xl lg:text-4xl">
+          <h2 className="mt-3 text-2xl font-bold tracking-tight text-neutral-900 sm:mt-4 sm:text-3xl lg:text-4xl">
             Loved by teams everywhere
           </h2>
-          <p className="mt-3 text-base text-zinc-400 sm:mt-4 sm:text-lg">
+          <p className="mt-3 text-base text-neutral-600 sm:mt-4 sm:text-lg">
             See what our partners have to say for LinkHexa.
           </p>
         </motion.div>
@@ -64,16 +64,16 @@ export default function Testimonials() {
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
               whileHover={{ y: -4 }}
-              className="glass flex flex-col rounded-2xl border border-white/5 p-4 sm:p-6"
+              className="flex flex-col rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-6"
             >
-              <p className="flex-1 text-sm text-zinc-300 sm:text-base">&ldquo;{t.quote}&rdquo;</p>
+              <p className="flex-1 text-sm text-neutral-700 sm:text-base">&ldquo;{t.quote}&rdquo;</p>
               <div className="mt-6 flex flex-shrink-0 items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500/20 text-sm font-semibold text-indigo-400">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-sm font-semibold text-[#1f006a]">
                   {t.avatar}
                 </div>
                 <div>
-                  <p className="font-semibold text-white">{t.author}</p>
-                  <p className="text-sm text-zinc-500">
+                  <p className="font-semibold text-neutral-900">{t.author}</p>
+                  <p className="text-sm text-neutral-600">
                     {t.role}, {t.company}
                   </p>
                 </div>

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { applyUsdToAwinUpsertRows } from "./fx-frankfurter";
 import { matchKnownSlug, resolvePublisherIdFromClickRef } from "./slug-match";
 import { fetchAwinTransactionsRange, parseAwinTransactionRow } from "./transactions";
 import type { ParsedAwinTransaction } from "./transactions";
@@ -151,6 +152,8 @@ type UpsertTxnRow = {
   publisher_id: string | null;
   go_link_slug: string | null;
   synced_at: string;
+  commission_amount_usd: number;
+  sale_amount_usd: number;
   manually_assigned_at?: string | null;
   manually_assigned_by?: string | null;
 };
@@ -284,6 +287,8 @@ export async function syncAwinTransactionsToDatabase(
       publisher_id: publisherId,
       go_link_slug: matchedSlug,
       synced_at: new Date().toISOString(),
+      commission_amount_usd: 0,
+      sale_amount_usd: 0,
     };
   });
   for (const p of parsed) {
@@ -325,6 +330,8 @@ export async function syncAwinTransactionsToDatabase(
       mergePreserveAttributionFromDb(row, existingById.get(String(row.awin_transaction_id)))
     );
 
+    await applyUsdToAwinUpsertRows(supabase, mergedSlice);
+
     const { error } = await supabase.from("awin_transactions").upsert(mergedSlice, {
       onConflict: "awin_transaction_id",
     });
@@ -352,7 +359,7 @@ export async function syncAwinTransactionsToDatabase(
         synced_at: new Date().toISOString(),
       };
       const run = (advKey: number | string) => {
-        let q = supabase
+        const q = supabase
           .from("awin_transactions")
           .update(payload)
           .eq("advertiser_id", advKey)

@@ -69,8 +69,8 @@ function AnimatedNumber({
 
   return (
     <div ref={ref}>
-      <p className="text-xl font-bold text-white sm:text-2xl lg:text-3xl">{formatAnimated(display, format)}</p>
-      <p className="mt-0.5 text-sm text-zinc-500">{label}</p>
+      <p className="text-xl font-bold text-neutral-900 sm:text-2xl lg:text-3xl">{formatAnimated(display, format)}</p>
+      <p className="mt-0.5 text-sm text-neutral-600">{label}</p>
     </div>
   );
 }
@@ -108,10 +108,10 @@ function AnimatedStatCard({
   return (
     <div
       ref={ref}
-      className="rounded-xl border border-white/5 bg-zinc-900/60 p-5 text-center backdrop-blur-sm transition-all hover:border-indigo-500/20"
+      className="rounded-xl border border-neutral-200 bg-white p-5 text-center shadow-sm transition-all hover:border-violet-300"
     >
-      <p className="text-2xl font-bold text-indigo-400 sm:text-3xl">{formatAnimated(display, format)}</p>
-      <p className="mt-1 text-sm text-zinc-500">{label}</p>
+      <p className="text-2xl font-bold text-[#1f006a] sm:text-3xl">{formatAnimated(display, format)}</p>
+      <p className="mt-1 text-sm text-neutral-600">{label}</p>
     </div>
   );
 }
@@ -144,17 +144,16 @@ function TrendLineChart() {
           />
         </svg>
       </div>
-      <p className="text-xs text-zinc-500">Trend — Last 12 months</p>
+      <p className="text-xs text-neutral-500">Trend — Last 12 months</p>
     </div>
   );
 }
 
 export default function ImpactByNumbers() {
   return (
-    <section id="impact" className="relative overflow-hidden py-16 sm:py-24 lg:py-32">
+    <section id="impact" className="relative overflow-hidden bg-white py-16 sm:py-24 lg:py-32">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute right-0 top-1/4 h-[300px] w-[300px] rounded-full bg-indigo-500/15 blur-[100px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_80%_20%,rgba(99,102,241,0.06),transparent)]" />
+        <div className="absolute right-0 top-1/4 h-[260px] w-[260px] rounded-full bg-violet-200/40 blur-[90px]" />
       </div>
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -164,9 +163,9 @@ export default function ImpactByNumbers() {
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            className="rounded-2xl border border-white/5 bg-zinc-900/60 p-4 backdrop-blur-sm sm:p-6 lg:p-8"
+            className="rounded-2xl border border-neutral-200 bg-neutral-50/90 p-4 shadow-sm sm:p-6 lg:p-8"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1f006a]">
               Global Metrics
             </p>
             <div className="mt-6 grid grid-cols-3 gap-4">
@@ -191,15 +190,12 @@ export default function ImpactByNumbers() {
               viewport={{ once: true }}
               className="inline-flex items-center gap-2"
             >
-              <span className="text-indigo-400">
+              <span className="text-[#1f006a]">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
                 </svg>
               </span>
-              <span
-                className="rounded-2xl border-2 border-indigo-400/70 bg-black/30 px-4 py-2 text-xl font-bold tracking-tight text-white sm:px-5 sm:py-2.5 sm:text-2xl lg:text-3xl"
-                style={{ fontFamily: "var(--font-libre-baskerville), serif", letterSpacing: "-0.02em" }}
-              >
+              <span className="rounded-2xl border-2 border-[#1f006a]/30 bg-violet-50 px-4 py-2 text-xl font-bold tracking-[-0.02em] text-[#1f006a] sm:px-5 sm:py-2.5 sm:text-2xl lg:text-3xl">
                 Impact in Action
               </span>
             </motion.div>
@@ -207,7 +203,7 @@ export default function ImpactByNumbers() {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="mt-6 text-base leading-relaxed text-zinc-400"
+              className="mt-6 text-base leading-relaxed text-neutral-600"
             >
               From top-tier brands to high-performing publishers, our platform fuels worldwide partnerships. Harness real-time insights, monitor performance, and expand your business with results you can measure every day.
             </motion.p>
@@ -232,7 +228,7 @@ export default function ImpactByNumbers() {
           ))}
         </motion.div>
 
-        <p className="mt-6 text-center text-xs text-zinc-500">
+        <p className="mt-6 text-center text-xs text-neutral-500">
           Real-time data, updated daily
         </p>
       </div>
