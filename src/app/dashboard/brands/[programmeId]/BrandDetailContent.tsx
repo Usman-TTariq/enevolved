@@ -421,7 +421,7 @@ export default function BrandDetailContent({ programmeId }: { programmeId: strin
                       />
                       <p className="mt-1.5 text-xs text-zinc-500">
                         {deepLink
-                          ? "Same store domain only. We send this URL through Awin’s link builder so redirects stay tracked."
+                          ? "Use a page on the same store as this programme, or a regional site (e.g. .de) if Awin lists it for this advertiser. We match Awin’s allowed domains and your programme URL."
                           : "Uses your Awin click-through URL (or store URL) when deep link is off."}
                       </p>
                     </div>

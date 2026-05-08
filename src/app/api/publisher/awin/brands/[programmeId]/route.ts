@@ -7,6 +7,7 @@ import {
   fetchAwinPromotions,
   isAwinConfigured,
 } from "@/lib/awin/client";
+import { collectMerchantHostsFromProgrammeDetails } from "@/lib/awin/merchant-landing-hosts";
 import { presentAwinProgrammeDetails } from "@/lib/awin/present-programme-details";
 import {
   buildAwinTermsSections,
@@ -83,6 +84,14 @@ export async function GET(_request: Request, { params }: Params) {
     if (detailSettled.status === "fulfilled") {
       detailsRaw = detailSettled.value;
       awinDetails = presentAwinProgrammeDetails(detailsRaw, row.currency_code);
+      const hosts = collectMerchantHostsFromProgrammeDetails(
+        detailsRaw,
+        row.display_url as string | null,
+        row.click_through_url as string | null
+      );
+      if (hosts.length > 0) {
+        await supabase.from("awin_programmes").update({ valid_domains: hosts }).eq("programme_id", programmeId);
+      }
     }
 
     if (promoSettled.status === "fulfilled") {

@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireApprovedPublisher } from "@/lib/publisher-session";
-import { fetchAwinProgrammes, generateAwinTrackingLink, isAwinConfigured } from "@/lib/awin/client";
+import { fetchAwinProgrammes, fetchAwinProgrammeDetails, generateAwinTrackingLink, isAwinConfigured } from "@/lib/awin/client";
+import {
+  collectMerchantHostsFromProgrammeDetails,
+  landingHostMatchesApprovedHosts,
+  mergeProgrammeRowHosts,
+} from "@/lib/awin/merchant-landing-hosts";
 import { getSiteOrigin } from "@/lib/site-origin";
 import { normalizeDisplayUrl, resolveTrackedDestination } from "@/lib/go-link-target";
 
@@ -36,23 +41,6 @@ function resolveLandingInput(raw: string, displayUrl: string | null): string | n
     return new URL(path, base).toString();
   } catch {
     return null;
-  }
-}
-
-function hostMatchesMerchant(landing: string, displayUrl: string | null): boolean {
-  let landHost: string;
-  try {
-    landHost = new URL(landing).hostname.toLowerCase().replace(/^www\./, "");
-  } catch {
-    return false;
-  }
-  const base = normalizeDisplayUrl(displayUrl);
-  if (!base) return false;
-  try {
-    const h = new URL(base).hostname.toLowerCase().replace(/^www\./, "");
-    return landHost === h || landHost.endsWith(`.${h}`);
-  } catch {
-    return false;
   }
 }
 
@@ -197,7 +185,7 @@ export async function POST(request: Request) {
 
   const { data: row, error: rowErr } = await supabase
     .from("awin_programmes")
-    .select("programme_id, display_url, click_through_url")
+    .select("programme_id, display_url, click_through_url, valid_domains")
     .eq("programme_id", programmeId)
     .maybeSingle();
 
@@ -210,6 +198,13 @@ export async function POST(request: Request) {
 
   const displayUrl = row.display_url as string | null;
   const clickThrough = row.click_through_url as string | null;
+  const validDomainsCol = row.valid_domains as string[] | null;
+
+  let approvedHosts = mergeProgrammeRowHosts({
+    displayUrl,
+    clickThroughUrl: clickThrough,
+    validDomains: validDomainsCol,
+  });
 
   let resolvedDeep: string | null = null;
   if (deepLink && landingRaw.trim()) {
@@ -217,9 +212,27 @@ export async function POST(request: Request) {
     if (!resolvedDeep) {
       return NextResponse.json({ error: "Enter a valid landing page URL or path for this store." }, { status: 400 });
     }
-    if (!hostMatchesMerchant(resolvedDeep, displayUrl)) {
+
+    const ensureLandingAllowed = async (): Promise<boolean> => {
+      if (landingHostMatchesApprovedHosts(resolvedDeep!, approvedHosts)) return true;
+      if (!isAwinConfigured()) return false;
+      try {
+        const details = await fetchAwinProgrammeDetails(programmeId, { relationship: "any" });
+        const fresh = collectMerchantHostsFromProgrammeDetails(details, displayUrl, clickThrough);
+        await supabase.from("awin_programmes").update({ valid_domains: fresh }).eq("programme_id", programmeId);
+        approvedHosts = fresh;
+        return landingHostMatchesApprovedHosts(resolvedDeep!, approvedHosts);
+      } catch {
+        return false;
+      }
+    };
+
+    if (!(await ensureLandingAllowed())) {
       return NextResponse.json(
-        { error: "Landing page must use the same domain as this programme’s store URL." },
+        {
+          error:
+            "Landing page must use a domain allowed for this programme (e.g. your store URL or a domain listed by Awin for this advertiser, such as a regional .de site).",
+        },
         { status: 400 }
       );
     }
