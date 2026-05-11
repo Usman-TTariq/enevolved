@@ -23,8 +23,8 @@ function addMoney(bucket: Record<string, number>, currency: string | null | unde
   bucket[c] = (bucket[c] ?? 0) + (Number.isFinite(amount) ? amount : 0);
 }
 
-function scoreAdvertiser(a: { sales: number; commissionUsdApprox: number }): number {
-  return a.sales * 1e6 + a.commissionUsdApprox;
+function scoreAdvertiser(a: { commissionUsdApprox: number; sales: number }): number {
+  return a.commissionUsdApprox * 1e6 + a.sales;
 }
 
 async function fetchProgrammeNameMap(
