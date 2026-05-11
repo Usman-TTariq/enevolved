@@ -1,5 +1,18 @@
 const AWIN_BASE = "https://api.awin.com";
 
+/** Simple request pacer: wait at least N ms between Awin HTTP calls to stay under 100/min. */
+let lastAwinCallMs = 0;
+const MIN_INTERVAL_MS = 650;
+
+async function paceAwinRequest(): Promise<void> {
+  const now = Date.now();
+  const elapsed = now - lastAwinCallMs;
+  if (elapsed < MIN_INTERVAL_MS) {
+    await new Promise((r) => setTimeout(r, MIN_INTERVAL_MS - elapsed));
+  }
+  lastAwinCallMs = Date.now();
+}
+
 function getConfig() {
   const token = process.env.AWIN_API_TOKEN?.trim();
   const publisherId = process.env.AWIN_PUBLISHER_ID?.trim();
@@ -38,6 +51,8 @@ export async function fetchAwinTransactionsRange(options: {
 
   const tz = options.timezone ?? "UTC";
   const out: unknown[] = [];
+  const MAX_429_RETRIES = 3;
+  const RATE_LIMIT_WAIT_MS = 62_000;
 
   for (let page = 1; page <= 100; page++) {
     const url = new URL(`${AWIN_BASE}/publishers/${publisherId}/transactions/`);
@@ -47,17 +62,25 @@ export async function fetchAwinTransactionsRange(options: {
     url.searchParams.set("timezone", tz);
     url.searchParams.set("page", String(page));
 
-    const res = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    });
+    let res: Response | null = null;
+    for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
+      await paceAwinRequest();
+      res = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      });
+      if (res.status !== 429) break;
+      if (attempt < MAX_429_RETRIES) {
+        await new Promise((r) => setTimeout(r, RATE_LIMIT_WAIT_MS));
+      }
+    }
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`Awin transactions ${res.status}: ${text.slice(0, 400)}`);
+    if (!res || !res.ok) {
+      const text = await (res?.text() ?? Promise.resolve("")).catch(() => "");
+      throw new Error(`Awin transactions ${res?.status ?? "no-response"}: ${text.slice(0, 400)}`);
     }
 
     const data = (await res.json()) as unknown;

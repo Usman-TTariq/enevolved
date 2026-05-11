@@ -4,6 +4,9 @@ import { rollingUtcWindowDays } from "./aggregate-from-transactions";
 
 const DEFAULT_THROTTLE_MS = 15 * 60 * 1000;
 
+/** In-memory guard so concurrent `after()` calls don't fire multiple syncs. */
+let syncInFlight = false;
+
 function parseThrottleMs(): number {
   const raw = process.env.ADMIN_DASHBOARD_AWIN_SYNC_MINUTES?.trim();
   if (!raw) return DEFAULT_THROTTLE_MS;
@@ -13,20 +16,27 @@ function parseThrottleMs(): number {
 }
 
 /**
- * Pulls last 30 days from Awin into `awin_transactions` when the admin dashboard loads,
- * throttled so we do not hit the API on every refresh.
+ * Pulls recent transactions from Awin when admin dashboard loads, throttled.
+ * Auto-pull uses a short 3-day window to minimize API usage; forced pull uses 30 days.
  */
 export async function maybeSyncAwinOnAdminDashboardLoad(
   supabase: SupabaseClient,
   options: { force: boolean }
 ): Promise<{ ran: boolean; skippedReason?: string; error?: string }> {
+  if (syncInFlight) {
+    return { ran: false, skippedReason: "Sync already in progress (concurrent call skipped)." };
+  }
+
   if (options.force) {
-    const { start, end } = rollingUtcWindowDays(30);
-    const result = await syncAwinTransactionsToDatabase(supabase, { start, end });
-    if (!result.ok) {
-      return { ran: true, error: result.error };
+    syncInFlight = true;
+    try {
+      const { start, end } = rollingUtcWindowDays(30);
+      const result = await syncAwinTransactionsToDatabase(supabase, { start, end });
+      if (!result.ok) return { ran: true, error: result.error };
+      return { ran: true };
+    } finally {
+      syncInFlight = false;
     }
-    return { ran: true };
   }
 
   const throttleMs = parseThrottleMs();
@@ -45,10 +55,12 @@ export async function maybeSyncAwinOnAdminDashboardLoad(
     };
   }
 
-  const { start, end } = rollingUtcWindowDays(30);
-  const result = await syncAwinTransactionsToDatabase(supabase, { start, end });
-  if (!result.ok) {
-    return { ran: true, error: result.error };
+  syncInFlight = true;
+  try {
+    const result = await syncAwinTransactionsToDatabase(supabase);
+    if (!result.ok) return { ran: true, error: result.error };
+    return { ran: true };
+  } finally {
+    syncInFlight = false;
   }
-  return { ran: true };
 }
