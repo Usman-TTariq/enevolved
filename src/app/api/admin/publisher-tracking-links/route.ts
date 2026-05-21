@@ -2,23 +2,18 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "../require-admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSiteOrigin } from "@/lib/site-origin";
-import { AWIN_AGG_FALLBACK_CURRENCY } from "@/lib/awin/currency-default";
-import { matchKnownSlug } from "@/lib/awin/slug-match";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** One `.or(go_link_slug.eq.s,click_ref.ilike.%s%)` per slug — avoids huge OR strings that PostgREST/proxies mishandle. */
-const SLUG_TXN_QUERY_CONCURRENCY = 8;
-
-type TxnRow = {
-  awin_transaction_id: string;
+type ActionRow = {
+  action_id: string;
   publisher_id: string | null;
   go_link_slug: string | null;
-  click_ref: string | null;
+  sub_id3: string | null;
+  payout: number | string | null;
+  payout_currency: string | null;
   sale_amount: number | string | null;
   sale_currency: string | null;
-  commission_amount: number | string | null;
-  commission_currency: string | null;
 };
 
 type Agg = {
@@ -31,28 +26,14 @@ function emptyAgg(): Agg {
   return { txnCount: 0, saleByCurrency: {}, commissionByCurrency: {} };
 }
 
-function addToAgg(
-  agg: Agg,
-  row: {
-    sale_amount: number | string | null;
-    sale_currency: string | null;
-    commission_amount: number | string | null;
-    commission_currency: string | null;
-  }
-): void {
+function addToAgg(agg: Agg, row: ActionRow): void {
   agg.txnCount += 1;
-  const sc = (row.sale_currency ?? AWIN_AGG_FALLBACK_CURRENCY).toUpperCase();
-  const cc = (row.commission_currency ?? AWIN_AGG_FALLBACK_CURRENCY).toUpperCase();
+  const sc = (row.sale_currency ?? "USD").toUpperCase();
+  const pc = (row.payout_currency ?? "USD").toUpperCase();
   agg.saleByCurrency[sc] = (agg.saleByCurrency[sc] ?? 0) + Number(row.sale_amount ?? 0);
-  agg.commissionByCurrency[cc] = (agg.commissionByCurrency[cc] ?? 0) + Number(row.commission_amount ?? 0);
+  agg.commissionByCurrency[pc] = (agg.commissionByCurrency[pc] ?? 0) + Number(row.payout ?? 0);
 }
 
-/**
- * GET: All go-links for one publisher + Awin stats per slug.
- * Linked = rows matching this slug where publisher is this user OR publisher is not set yet
- * (same short link — still shown under Linked so sales/comm match reality). Other = different publisher_id.
- * Query: publisherId (UUID)
- */
 export async function GET(request: Request) {
   const err = requireAdmin(request);
   if (err) return err;
@@ -66,9 +47,10 @@ export async function GET(request: Request) {
   const origin = getSiteOrigin();
 
   try {
+    // 1. Load all go-links for this publisher
     const { data: linkRows, error: linkErr } = await supabase
       .from("publisher_go_links")
-      .select("id, slug, target_url, deep_link, click_count, created_at, programme_id")
+      .select("id, slug, target_url, deep_link, click_count, created_at, campaign_id")
       .eq("publisher_id", publisherId)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -84,103 +66,65 @@ export async function GET(request: Request) {
       deep_link: boolean;
       click_count: number | null;
       created_at: string;
-      programme_id: number;
+      campaign_id: string | null;
     }[];
 
-    const progIds = [...new Set(links.map((l) => l.programme_id))];
-    let progMap = new Map<number, string | null>();
-    if (progIds.length > 0) {
-      const { data: progs, error: progErr } = await supabase
-        .from("awin_programmes")
-        .select("programme_id, name")
-        .in("programme_id", progIds);
-
-      if (progErr) {
-        return NextResponse.json({ error: progErr.message }, { status: 500 });
+    // 2. Resolve campaign names from impact_campaigns
+    const campaignIds = [...new Set(links.map((l) => l.campaign_id).filter(Boolean))] as string[];
+    const campaignMap = new Map<string, string | null>();
+    if (campaignIds.length > 0) {
+      const { data: camps } = await supabase
+        .from("impact_campaigns")
+        .select("impact_id, name")
+        .in("impact_id", campaignIds);
+      for (const c of camps ?? []) {
+        campaignMap.set(String(c.impact_id), c.name as string | null);
       }
-
-      progMap = new Map((progs ?? []).map((p) => [p.programme_id as number, p.name as string | null]));
     }
 
+    // 3. For each slug, aggregate impact_actions
     const slugs = links.map((l) => l.slug);
     const linkedBySlug = new Map<string, Agg>();
-    const unlinkedBySlug = new Map<string, Agg>();
-    const otherBySlug = new Map<string, Agg>();
+    const otherBySlug  = new Map<string, Agg>();
     for (const s of slugs) {
       linkedBySlug.set(s, emptyAgg());
-      unlinkedBySlug.set(s, emptyAgg());
       otherBySlug.set(s, emptyAgg());
     }
 
-    const normPubId = (id: string) => id.trim().toLowerCase();
-    const publisherIdNorm = normPubId(publisherId);
-    const fullSlugSet = new Set(slugs);
-    const uniqueSlugs = [...fullSlugSet];
+    if (slugs.length > 0) {
+      // Fetch all impact_actions matching any of these slugs
+      const { data: actionRows } = await supabase
+        .from("impact_actions")
+        .select("action_id, publisher_id, go_link_slug, sub_id3, payout, payout_currency, sale_amount, sale_currency")
+        .in("go_link_slug", slugs);
 
-    if (uniqueSlugs.length > 0) {
-      const merged = new Map<string, TxnRow>();
+      const pubNorm = publisherId.trim().toLowerCase();
 
-      for (let i = 0; i < uniqueSlugs.length; i += SLUG_TXN_QUERY_CONCURRENCY) {
-        const slice = uniqueSlugs.slice(i, i + SLUG_TXN_QUERY_CONCURRENCY);
-        const pages = await Promise.all(
-          slice.map((s) =>
-            supabase
-              .from("awin_transactions")
-              .select(
-                "awin_transaction_id, publisher_id, go_link_slug, click_ref, sale_amount, sale_currency, commission_amount, commission_currency"
-              )
-              .or(`go_link_slug.eq.${s},click_ref.ilike.%${s}%`)
-          )
-        );
+      for (const r of (actionRows ?? []) as ActionRow[]) {
+        const key = r.go_link_slug ?? "";
+        if (!key || !linkedBySlug.has(key)) continue;
 
-        for (const { data, error } of pages) {
-          if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
-          }
-          for (const r of data ?? []) {
-            const row = r as TxnRow;
-            merged.set(String(row.awin_transaction_id), row);
-          }
-        }
-      }
-
-      for (const r of merged.values()) {
-        const key = matchKnownSlug(r.go_link_slug, r.click_ref, fullSlugSet);
-        if (!key) continue;
-
-        if (r.publisher_id && normPubId(r.publisher_id) !== publisherIdNorm) {
-          const agg = otherBySlug.get(key) ?? emptyAgg();
-          addToAgg(agg, r);
-          otherBySlug.set(key, agg);
+        if (r.publisher_id && r.publisher_id.trim().toLowerCase() !== pubNorm) {
+          addToAgg(otherBySlug.get(key) ?? emptyAgg(), r);
         } else {
-          const agg = linkedBySlug.get(key) ?? emptyAgg();
-          addToAgg(agg, r);
-          linkedBySlug.set(key, agg);
+          addToAgg(linkedBySlug.get(key)!, r);
         }
       }
     }
 
     const payload = links.map((l) => {
       const stats = linkedBySlug.get(l.slug) ?? emptyAgg();
-      const unlinked = unlinkedBySlug.get(l.slug) ?? emptyAgg();
-      const other = otherBySlug.get(l.slug) ?? emptyAgg();
+      const other  = otherBySlug.get(l.slug)  ?? emptyAgg();
       return {
         id: l.id,
         slug: l.slug,
         shortUrl: `${origin}/go/short/${l.slug}`,
-        targetUrl: l.target_url,
-        deepLink: l.deep_link,
-        createdAt: l.created_at,
-        programmeId: l.programme_id,
-        brandName: progMap.get(l.programme_id) ?? null,
         clicks: Number(l.click_count ?? 0),
+        brandName: l.campaign_id ? (campaignMap.get(l.campaign_id) ?? null) : null,
         stats: {
           txnCount: stats.txnCount,
           saleByCurrency: stats.saleByCurrency,
           commissionByCurrency: stats.commissionByCurrency,
-          unlinkedTxnCount: unlinked.txnCount,
-          unlinkedSaleByCurrency: unlinked.saleByCurrency,
-          unlinkedCommissionByCurrency: unlinked.commissionByCurrency,
           otherPublisherTxnCount: other.txnCount,
           otherPublisherSaleByCurrency: other.saleByCurrency,
           otherPublisherCommissionByCurrency: other.commissionByCurrency,
@@ -189,7 +133,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({ publisherId, links: payload });
-  } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Server error" }, { status: 500 });
   }
 }

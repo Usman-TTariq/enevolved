@@ -8,7 +8,7 @@ export default function AdminDashboardContent() {
   return (
     <AdminShell>
       <AdminDashboardOverview />
-      <div className="mt-16 border-t border-white/10 pt-12">
+      <div className="mt-16 border-t border-gray-100 pt-12">
         <AdminSignupsSection />
       </div>
     </AdminShell>

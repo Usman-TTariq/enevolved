@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 40" fill="none" role="img" aria-label="Walmart">
+  <text x="4" y="28" font-family="system-ui,sans-serif" font-size="24" font-weight="700" fill="#0071CE">Walmart</text>
+  <g fill="#FFC220" transform="translate(168,6)">
+    <path d="M0 14 4 4 8 14 18 10 10 18 18 26 8 22 4 32 0 22-10 26-2 18-10 10Z"/>
+  </g>
+</svg>

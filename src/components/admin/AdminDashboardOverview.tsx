@@ -1,21 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 
+/* ─── Types ──────────────────────────────────────────── */
 type DashboardStats = {
   profiles: {
-    total: number;
-    publishers: number;
-    advertisers: number;
-    pending: number;
-    approved: number;
-    rejected: number;
+    total: number; publishers: number; advertisers: number;
+    pending: number; approved: number; rejected: number;
   };
   publisherGoLinks: { count: number; totalClicks: number };
   brandApplications: { total: number; pending: number; approved: number; rejected: number };
   awinProgrammesCached: number;
+  impactReporting?: {
+    actionsStored: number; actionsAttributed: number;
+    campaignsCached: number;
+    lastSyncAt: string | null; lastSyncError: string | null;
+    applicationsPending: number; applicationsApproved: number;
+  };
   pendingSignups: { id: string; username: string; email: string; role: string; created_at: string }[];
   financials: {
     commissionByCurrency: Record<string, number>;
@@ -28,459 +30,649 @@ type DashboardStats = {
     source?: "rollup" | "awin_transactions";
   };
   awinReporting: {
-    transactionsStored: number;
-    transactionsAttributed: number;
-    lastSyncAt: string | null;
-    lastSyncError: string | null;
+    transactionsStored: number; transactionsAttributed: number;
+    lastSyncAt: string | null; lastSyncError: string | null;
   };
   awinActivityLast30Days: {
-    fromYmd: string;
-    toYmd: string;
-    transactionCount: number;
-    transactionCountAttributed: number;
-    saleByCurrency: Record<string, number>;
-    commissionByCurrency: Record<string, number>;
-    primarySaleCurrency: string | null;
-    primarySale: number;
-    primaryCommissionCurrency: string | null;
-    primaryCommission: number;
+    fromYmd: string; toYmd: string;
+    transactionCount: number; transactionCountAttributed: number;
+    saleByCurrency: Record<string, number>; commissionByCurrency: Record<string, number>;
+    primarySaleCurrency: string | null; primarySale: number;
+    primaryCommissionCurrency: string | null; primaryCommission: number;
   };
   awinSyncOnDashboardLoad?: { ran: boolean; skippedReason?: string; error?: string };
 };
 
 type PublisherEarningRow = {
-  publisherId: string;
-  username: string;
-  email: string;
-  commissionByCurrency: Record<string, number>;
-  saleByCurrency: Record<string, number>;
+  publisherId: string; username: string; email: string;
+  commissionByCurrency: Record<string, number>; saleByCurrency: Record<string, number>;
 };
 
-function formatMoney(n: number, currency: string) {
-  try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
-  } catch {
-    return `${n.toFixed(2)} ${currency}`;
-  }
-}
+type TTStats = {
+  transactions: { total: number; accepted: number; pending: number; rejected: number; attributed: number };
+  campaigns:    { total: number; accepted: number };
+  revenue:      { totalCommission: number; attributedEarnings: number };
+  lastSync:     { syncedAt: string } | null;
+};
 
+type PORStats = {
+  totalMerchants: number; joinedMerchants: number;
+  totalTransactions: number; pendingApplications: number;
+  commissionByCurrency: Record<string, number>;
+  lastSyncAt: string | null; lastSyncError: string | null;
+};
+
+/* ─── Helpers ──────────────────────────────────────────── */
+function formatMoney(n: number, currency: string) {
+  try { return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n); }
+  catch { return `${n.toFixed(2)} ${currency}`; }
+}
 function formatUsd(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 
-function KpiTile({
-  label,
-  value,
-  variant = "default",
+/* ─── Premium KPI card ─────────────────────────────────── */
+function KpiCard({
+  label, value, icon, accent = "teal", alert = false,
 }: {
-  label: string;
-  value: string | number;
-  variant?: "default" | "pending" | "clicks";
+  label: string; value: string | number;
+  icon: string; accent?: "teal" | "amber" | "blue" | "rose" | "emerald";
+  alert?: boolean;
 }) {
+  const accents: Record<string, { bg: string; text: string; ring: string; iconBg: string }> = {
+    teal:    { bg: "bg-teal-50",   text: "text-teal-700",   ring: "ring-teal-100",   iconBg: "from-teal-500 to-emerald-500" },
+    amber:   { bg: "bg-amber-50",  text: "text-amber-700",  ring: "ring-amber-100",  iconBg: "from-amber-400 to-orange-500" },
+    blue:    { bg: "bg-blue-50",   text: "text-blue-700",   ring: "ring-blue-100",   iconBg: "from-blue-500 to-indigo-500" },
+    rose:    { bg: "bg-rose-50",   text: "text-rose-700",   ring: "ring-rose-100",   iconBg: "from-rose-500 to-pink-500" },
+    emerald: { bg: "bg-emerald-50",text: "text-emerald-700",ring: "ring-emerald-100",iconBg: "from-emerald-500 to-teal-500" },
+  };
+  const a = accents[accent];
   return (
-    <div
-      className={`rounded-2xl border bg-zinc-900/70 p-4 shadow-lg shadow-black/20 backdrop-blur-sm ${
-        variant === "pending" && Number(value) > 0
-          ? "border-amber-500/50 ring-1 ring-amber-500/30"
-          : "border-white/10"
-      }`}
-    >
-      <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">{label}</p>
-      <p
-        className={`mt-2 text-2xl font-bold tabular-nums ${
-          variant === "clicks" ? "text-teal-400" : "text-white"
-        }`}
-      >
-        {typeof value === "number" ? value.toLocaleString() : value}
-      </p>
+    <div className={`group relative overflow-hidden rounded-2xl bg-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
+      alert ? "ring-2 ring-amber-300 shadow-md shadow-amber-100" : "border border-gray-100 shadow-sm hover:border-teal-100"
+    }`}>
+      {/* Top gradient line */}
+      <div className="h-[3px] w-full" style={{ background: alert
+        ? "linear-gradient(90deg,#f59e0b,#fbbf24)"
+        : accent === "teal" ? "linear-gradient(90deg,#0d9488,#059669)"
+        : accent === "blue" ? "linear-gradient(90deg,#3b82f6,#6366f1)"
+        : accent === "amber" ? "linear-gradient(90deg,#f59e0b,#f97316)"
+        : accent === "emerald" ? "linear-gradient(90deg,#10b981,#0d9488)"
+        : "linear-gradient(90deg,#f43f5e,#ec4899)"
+      }} />
+      <div className="p-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.1em] text-gray-400">{label}</p>
+            <p className={`mt-2 text-3xl font-extrabold tabular-nums tracking-tight ${alert ? "text-amber-600" : "text-gray-900"}`}
+              style={{ letterSpacing: "-0.03em" }}>
+              {typeof value === "number" ? value.toLocaleString() : value}
+            </p>
+          </div>
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-sm ${a.iconBg}`}>
+            <svg className="h-4.5 w-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
+            </svg>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
+/* ─── Section title ────────────────────────────────────── */
+function SectionTitle({ children, sub }: { children: React.ReactNode; sub?: string }) {
+  return (
+    <div className="mb-5">
+      <div className="flex items-center gap-3">
+        <div className="h-5 w-1 rounded-full" style={{ background: "linear-gradient(180deg,#0d9488,#059669)" }} />
+        <h2 className="text-base font-extrabold tracking-tight text-gray-900" style={{ letterSpacing: "-0.02em" }}>
+          {children}
+        </h2>
+      </div>
+      {sub && <p className="mt-1 pl-4 text-xs text-gray-400">{sub}</p>}
+    </div>
+  );
+}
+
+/* ─── Finance card ─────────────────────────────────────── */
+function FinanceCard({
+  title, primary, sub, children,
+}: { title: string; primary: string; sub?: string; children?: React.ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+      <div className="h-[3px]" style={{ background: "linear-gradient(90deg,#0d9488,#059669,#0891b2)" }} />
+      <div className="p-5">
+        <p className="text-[10px] font-black uppercase tracking-[0.1em] text-gray-400">{title}</p>
+        <p className="mt-2 text-2xl font-extrabold tracking-tight text-gray-900" style={{ letterSpacing: "-0.03em" }}>
+          {primary}
+        </p>
+        {sub && <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400">{sub}</p>}
+        {children && <div className="mt-3">{children}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Action button ────────────────────────────────────── */
+function ActionBtn({ onClick, disabled, children, variant = "primary" }: {
+  onClick: () => void; disabled?: boolean;
+  children: React.ReactNode; variant?: "primary" | "ghost";
+}) {
+  if (variant === "ghost") {
+    return (
+      <button type="button" onClick={onClick} disabled={disabled}
+        className="mt-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 disabled:opacity-40">
+        {children}
+      </button>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      className="mt-3 flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:opacity-40"
+      style={{ background: "linear-gradient(135deg,#0d9488,#059669)" }}>
+      {children}
+    </button>
+  );
+}
+
+/* ─── Table wrapper ────────────────────────────────────── */
+function AdminTable({ heads, children }: { heads: string[]; children: React.ReactNode }) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white shadow-sm">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-gray-100" style={{ background: "linear-gradient(90deg,#f0fdf9,#f5f9ff)" }}>
+            {heads.map((h, i) => (
+              <th key={i} className={`px-4 py-3 text-[10px] font-black uppercase tracking-[0.1em] text-gray-400 ${i === heads.length - 1 ? "text-right" : ""}`}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ─── Main component ──────────────────────────────────── */
 export default function AdminDashboardOverview() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [ttStats, setTtStats] = useState<TTStats | null>(null);
+  const [porStats, setPorStats] = useState<PORStats | null>(null);
   const [publishersEarnings, setPublishersEarnings] = useState<PublisherEarningRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const [syncing, setSyncing] = useState<string | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
-      setError(null);
+      setLoading(true); setError(null);
       try {
-        const [dashRes, pubRes] = await Promise.all([
+        const [dashRes, pubRes, ttRes, porRes] = await Promise.all([
           fetch("/api/admin/dashboard-stats", { credentials: "include" }),
           fetch("/api/admin/publishers-earnings?days=30", { credentials: "include" }),
+          fetch("/api/admin/tradetracker/stats", { credentials: "include" }),
+          fetch("/api/admin/por/stats", { credentials: "include" }),
         ]);
         const dashData = await dashRes.json().catch(() => ({}));
-        const pubData = await pubRes.json().catch(() => ({}));
-        if (!dashRes.ok) {
-          if (!cancelled) setError(dashData.error ?? "Could not load stats");
-          return;
-        }
+        const pubData  = await pubRes.json().catch(() => ({}));
+        const ttData   = await ttRes.json().catch(() => ({}));
+        const porData  = await porRes.json().catch(() => ({}));
+        if (!dashRes.ok) { if (!cancelled) setError(dashData.error ?? "Could not load stats"); return; }
         if (!cancelled) {
           setStats(dashData as DashboardStats);
           setPublishersEarnings(Array.isArray(pubData.publishers) ? pubData.publishers : []);
+          if (ttRes.ok)  setTtStats(ttData as TTStats);
+          if (porRes.ok) setPorStats(porData as PORStats);
         }
-      } catch {
-        if (!cancelled) setError("Could not load stats");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      } catch { if (!cancelled) setError("Could not load stats"); }
+      finally { if (!cancelled) setLoading(false); }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  return (
-    <>
-      <h1
-        className="text-2xl font-bold text-white sm:text-3xl"
-        style={{ fontFamily: "var(--font-libre-baskerville), serif" }}
-      >
-        Dashboard
-      </h1>
-      <p className="mt-1 text-sm text-zinc-400">
-        Live totals from Supabase (profiles, Awin applications, short links). Commissions and sales refresh when you run an Awin transaction sync.
-      </p>
+  const refreshStats = async () => {
+    const [dashRes, pubRes, ttRes, porRes] = await Promise.all([
+      fetch("/api/admin/dashboard-stats", { credentials: "include" }),
+      fetch("/api/admin/publishers-earnings?days=30", { credentials: "include" }),
+      fetch("/api/admin/tradetracker/stats", { credentials: "include" }),
+      fetch("/api/admin/por/stats", { credentials: "include" }),
+    ]);
+    if (dashRes.ok) setStats((await dashRes.json()) as DashboardStats);
+    if (pubRes.ok) { const p = await pubRes.json(); setPublishersEarnings(Array.isArray(p.publishers) ? p.publishers : []); }
+    if (ttRes.ok)  setTtStats((await ttRes.json()) as TTStats);
+    if (porRes.ok) setPorStats((await porRes.json()) as PORStats);
+  };
 
-      {loading && <p className="mt-8 text-zinc-500">Loading dashboard…</p>}
+  /* icons */
+  const ICONS = {
+    users:   "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z",
+    pub:     "M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z",
+    clock:   "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z",
+    check:   "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+    x:       "M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+    store:   "M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z",
+    link:    "M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244",
+    cursor:  "M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zm-7.518-.267A8.25 8.25 0 1120.25 10.5M8.288 14.212A5.25 5.25 0 1117.25 10.5",
+    app:     "M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z",
+  };
+
+  return (
+    <div className="space-y-10">
+      {/* ── Page header ── */}
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-teal-600">Overview</p>
+          <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-gray-900" style={{ letterSpacing: "-0.03em" }}>
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-gray-400">
+            Live totals from Supabase. Commissions refresh when you run a transaction sync.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 rounded-2xl border border-teal-100 bg-teal-50/60 px-4 py-2">
+          <div className="h-2 w-2 animate-pulse rounded-full bg-teal-500" />
+          <span className="text-xs font-semibold text-teal-700">Live data</span>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="flex items-center gap-3 text-sm text-gray-400">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-teal-200 border-t-teal-600" />
+          Loading dashboard…
+        </div>
+      )}
       {error && (
-        <p className="mt-8 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200" role="alert">
+        <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+          <svg className="h-5 w-5 shrink-0 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
           {error}
-        </p>
+        </div>
       )}
 
       {stats && !loading && (
         <>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-            <KpiTile label="Total users" value={stats.profiles.total} />
-            <KpiTile label="Publishers" value={stats.profiles.publishers} />
-            <KpiTile label="Pending approval" value={stats.profiles.pending} variant="pending" />
-            <KpiTile label="Approved" value={stats.profiles.approved} />
-            <KpiTile label="Rejected" value={stats.profiles.rejected} />
-            <KpiTile label="Advertisers" value={stats.profiles.advertisers} />
-          </div>
+          {/* ── Row 1: User stats ── */}
+          <section>
+            <SectionTitle sub="Real-time counts from the users table">User overview</SectionTitle>
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+              <KpiCard label="Total users"    value={stats.profiles.total}      icon={ICONS.users}  accent="teal" />
+              <KpiCard label="Publishers"     value={stats.profiles.publishers} icon={ICONS.pub}    accent="blue" />
+              <KpiCard label="Pending approval" value={stats.profiles.pending}  icon={ICONS.clock}  accent="amber" alert={stats.profiles.pending > 0} />
+              <KpiCard label="Approved"       value={stats.profiles.approved}   icon={ICONS.check}  accent="emerald" />
+              <KpiCard label="Rejected"       value={stats.profiles.rejected}   icon={ICONS.x}      accent="rose" />
+              <KpiCard label="Advertisers"    value={stats.profiles.advertisers}icon={ICONS.store}  accent="blue" />
+            </div>
+          </section>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-            <KpiTile label="Brand applications" value={stats.brandApplications.total} />
-            <KpiTile label="Tracking links" value={stats.publisherGoLinks.count} />
-            <KpiTile label="Clicks" value={stats.publisherGoLinks.totalClicks} variant="clicks" />
-            <KpiTile label="Pending applications" value={stats.brandApplications.pending} variant="pending" />
-            <KpiTile label="Approved applications" value={stats.brandApplications.approved} />
-            <KpiTile label="Rejected applications" value={stats.brandApplications.rejected} />
-          </div>
+          {/* ── Row 2: Link & app stats ── */}
+          <section>
+            <SectionTitle sub="Brand applications, tracking links, and click activity">Links & applications</SectionTitle>
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+              <KpiCard label="Brand apps total"  value={stats.brandApplications.total}    icon={ICONS.app}    accent="teal" />
+              <KpiCard label="Tracking links"    value={stats.publisherGoLinks.count}     icon={ICONS.link}   accent="blue" />
+              <KpiCard label="Total clicks"      value={stats.publisherGoLinks.totalClicks} icon={ICONS.cursor} accent="emerald" />
+              <KpiCard label="Pending apps"      value={stats.brandApplications.pending}   icon={ICONS.clock}  accent="amber" alert={stats.brandApplications.pending > 0} />
+              <KpiCard label="Approved apps"     value={stats.brandApplications.approved}  icon={ICONS.check}  accent="emerald" />
+              <KpiCard label="Rejected apps"     value={stats.brandApplications.rejected}  icon={ICONS.x}      accent="rose" />
+            </div>
+          </section>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-zinc-900/70 p-5 shadow-lg shadow-black/20 backdrop-blur-sm">
-              <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Attributed commissions (rollup)</p>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-white">
-                {stats.financials.primaryCurrency
+          {/* ── Finance cards ── */}
+          <section>
+            <SectionTitle sub="Impact · TradeTracker · PaidOnResults — run sync to refresh">Revenue & commissions</SectionTitle>
+
+            {/* ── Impact ── */}
+            <div className="grid gap-5 lg:grid-cols-2">
+              <FinanceCard
+                title="Impact — Attributed commissions"
+                primary={stats.financials.primaryCurrency
                   ? formatMoney(stats.financials.primaryCommission, stats.financials.primaryCurrency)
                   : formatUsd(0)}
-              </p>
-              <p className="mt-2 text-xs leading-relaxed text-zinc-600">
-                USD subtotal: {formatUsd(stats.financials.totalPublisherPayoutUsd)}. Other currencies:{" "}
-                {Object.entries(stats.financials.commissionByCurrency)
-                  .filter(([c]) => c !== "USD")
-                  .map(([c, v]) => `${c} ${v.toFixed(2)}`)
-                  .join(" · ") || "—"}
-              </p>
-              <button
-                type="button"
-                disabled={syncing}
-                onClick={async () => {
-                  setSyncing(true);
-                  setSyncMessage(null);
-                  try {
-                    const res = await fetch("/api/admin/awin/sync-transactions", {
-                      method: "POST",
-                      credentials: "include",
-                      headers: { "Content-Type": "application/json" },
-                      body: "{}",
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) {
-                      setSyncMessage(data.error ?? "Sync failed");
-                      return;
-                    }
-                    const fb = Number(data.fallbackAttributed ?? 0);
-                    const still = Number(data.stillWithoutClickRef ?? 0);
-                    setSyncMessage(
-                      `Synced ${data.fetched ?? 0} rows, ${data.upserted ?? 0} saved.` +
-                        (fb > 0
-                          ? ` ${fb} via programme fallback (click-weighted; Awin had no click ref).`
-                          : "") +
-                        ` Still no click_ref: ${still}.`
-                    );
-                    const dashRes = await fetch("/api/admin/dashboard-stats", { credentials: "include" });
-                    const pubRes = await fetch("/api/admin/publishers-earnings?days=30", { credentials: "include" });
-                    if (dashRes.ok) setStats((await dashRes.json()) as DashboardStats);
-                    if (pubRes.ok) {
-                      const p = await pubRes.json();
-                      setPublishersEarnings(Array.isArray(p.publishers) ? p.publishers : []);
-                    }
-                  } catch {
-                    setSyncMessage("Sync request failed");
-                  } finally {
-                    setSyncing(false);
-                  }
-                }}
-                className="mt-3 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-50"
+                sub={`USD: ${formatUsd(stats.financials.totalPublisherPayoutUsd)} · Other: ${
+                  Object.entries(stats.financials.commissionByCurrency).filter(([c]) => c !== "USD")
+                    .map(([c, v]) => `${c} ${v.toFixed(2)}`).join(", ") || "—"
+                } · Last sync: ${stats.awinReporting.lastSyncAt ? new Date(stats.awinReporting.lastSyncAt).toLocaleString() : "never"}`}
               >
-                {syncing ? "Syncing…" : "Sync Awin transactions now"}
-              </button>
-              {syncMessage && <p className="mt-2 text-xs text-teal-400/90">{syncMessage}</p>}
-              {stats.financials.source === "awin_transactions" && (
-                <p className="mt-2 text-xs text-amber-200/80">
-                  Totals are summed live from <code className="text-zinc-500">awin_transactions</code> because the daily rollup
-                  was empty. Use &quot;Rebuild rollup&quot; after bulk imports so publisher dashboards stay fast.
-                </p>
-              )}
-              <button
-                type="button"
-                disabled={rebuilding}
-                onClick={async () => {
-                  setRebuilding(true);
-                  setSyncMessage(null);
-                  try {
-                    const res = await fetch("/api/admin/awin/rebuild-rollup", {
-                      method: "POST",
-                      credentials: "include",
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) {
-                      setSyncMessage(data.error ?? "Rebuild failed");
-                      return;
-                    }
-                    setSyncMessage("Rollup rebuilt from awin_transactions.");
-                    const dashRes = await fetch("/api/admin/dashboard-stats", { credentials: "include" });
-                    const pubRes = await fetch("/api/admin/publishers-earnings?days=30", { credentials: "include" });
-                    if (dashRes.ok) setStats((await dashRes.json()) as DashboardStats);
-                    if (pubRes.ok) {
-                      const p = await pubRes.json();
-                      setPublishersEarnings(Array.isArray(p.publishers) ? p.publishers : []);
-                    }
-                  } catch {
-                    setSyncMessage("Rebuild request failed");
-                  } finally {
-                    setRebuilding(false);
-                  }
-                }}
-                className="mt-2 rounded-lg border border-white/15 bg-zinc-950/50 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-white/5 disabled:opacity-50"
-              >
-                {rebuilding ? "Rebuilding…" : "Rebuild daily rollup"}
-              </button>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-zinc-900/70 p-5 shadow-lg shadow-black/20 backdrop-blur-sm">
-              <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Attributed sale value (rollup)</p>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-teal-400">
-                {stats.financials.primaryCurrency
-                  ? formatMoney(stats.financials.primarySale, stats.financials.primaryCurrency)
-                  : "—"}
-              </p>
-              <p className="mt-2 text-xs leading-relaxed text-zinc-600">
-                Last Awin sync:{" "}
-                {stats.awinReporting.lastSyncAt
-                  ? new Date(stats.awinReporting.lastSyncAt).toLocaleString()
-                  : "never"}
-                . Stored transactions: {stats.awinReporting.transactionsStored.toLocaleString()} (
-                {stats.awinReporting.transactionsAttributed.toLocaleString()} matched to a publisher via link slug).
-              </p>
-              {stats.awinReporting.transactionsStored > 0 &&
-                stats.awinReporting.transactionsAttributed === 0 && (
-                  <p className="mt-2 text-xs text-amber-200/85">
-                    Rows exist but none are attributed: set <code className="text-zinc-500">publisher_id</code> (or{" "}
-                    <code className="text-zinc-500">click_ref</code> = a real{" "}
-                    <code className="text-zinc-500">publisher_go_links.slug</code>) on each transaction, then Rebuild rollup.
-                  </p>
+                <div className="flex flex-wrap gap-2">
+                  <ActionBtn variant="primary" disabled={syncing !== null} onClick={async () => {
+                    setSyncing("impact"); setSyncMessage(null);
+                    try {
+                      const res = await fetch("/api/admin/impact/sync-actions", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}" });
+                      const data = await res.json().catch(() => ({}));
+                      setSyncMessage(res.ok ? `✓ Impact: ${data.fetched ?? 0} fetched, ${data.attributed ?? 0} attributed.` : `✗ ${data.error ?? "Sync failed"}`);
+                      if (res.ok) await refreshStats();
+                    } catch { setSyncMessage("✗ Sync request failed"); }
+                    finally { setSyncing(null); }
+                  }}>
+                    {syncing === "impact" ? <><div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Syncing…</> : "Sync Impact"}
+                  </ActionBtn>
+                  <ActionBtn variant="ghost" disabled={rebuilding} onClick={async () => {
+                    setRebuilding(true); setSyncMessage(null);
+                    try {
+                      const res = await fetch("/api/admin/impact/rebuild-rollup", { method: "POST", credentials: "include" });
+                      const data = await res.json().catch(() => ({}));
+                      setSyncMessage(res.ok ? "✓ Impact rollup rebuilt." : `✗ ${data.error ?? "Rebuild failed"}`);
+                      if (res.ok) await refreshStats();
+                    } catch { setSyncMessage("✗ Rebuild failed"); }
+                    finally { setRebuilding(false); }
+                  }}>
+                    {rebuilding ? "Rebuilding…" : "Rebuild rollup"}
+                  </ActionBtn>
+                </div>
+                {syncMessage && (
+                  <p className={`mt-2 text-xs font-medium ${syncMessage.startsWith("✓") ? "text-teal-600" : "text-red-500"}`}>{syncMessage}</p>
                 )}
-              {stats.awinReporting.lastSyncError && (
-                <p className="mt-2 text-xs text-amber-300/90">Last error: {stats.awinReporting.lastSyncError}</p>
-              )}
-              <p className="mt-2 text-xs text-zinc-600">
-                Schedule POST <code className="text-zinc-500">/api/cron/awin-transactions</code> with{" "}
-                <code className="text-zinc-500">Authorization: Bearer AWIN_SYNC_CRON_SECRET</code> for automatic refresh.
-              </p>
-            </div>
-          </div>
+              </FinanceCard>
 
-          {publishersEarnings.length > 0 && (
-            <section className="mt-10">
-              <h2 className="text-lg font-semibold text-white">Publishers — sales &amp; commission (last 30 days)</h2>
-              <p className="mt-1 text-sm text-zinc-500">
-                From <code className="text-zinc-600">publisher_earnings_daily</code> (rollup after sync). Rows with a
-                publisher id / attributed slug feed this — not the same as the whole-network &quot;Activity by platform&quot;
-                totals above.
-              </p>
-              <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-900/70 shadow-lg shadow-black/20 backdrop-blur-sm">
-                <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-white/10 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                      <th className="px-4 py-3">Publisher</th>
-                      <th className="px-4 py-3 text-right">Sale (gross) by currency</th>
-                      <th className="px-4 py-3 text-right">Commission by currency</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {publishersEarnings.slice(0, 25).map((p) => (
-                      <tr key={p.publisherId} className="border-b border-white/5 text-zinc-300">
-                        <td className="px-4 py-3">
-                          <span className="font-medium text-white">{p.username}</span>
-                          <span className="mt-0.5 block text-xs text-zinc-500">{p.email}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-xs tabular-nums text-teal-400/90">
-                          {Object.entries(p.saleByCurrency ?? {})
-                            .filter(([, v]) => v > 0)
-                            .map(([c, v]) => `${c} ${v.toFixed(2)}`)
-                            .join(" · ") || "—"}
-                        </td>
-                        <td className="px-4 py-3 text-right text-xs tabular-nums">
-                          {Object.entries(p.commissionByCurrency)
-                            .filter(([, v]) => v > 0)
-                            .map(([c, v]) => `${c} ${v.toFixed(2)}`)
-                            .join(" · ") || "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <FinanceCard
+                title="Impact — Sale value"
+                primary={stats.financials.primaryCurrency ? formatMoney(stats.financials.primarySale, stats.financials.primaryCurrency) : "—"}
+                sub={`${stats.awinReporting.transactionsStored.toLocaleString()} actions stored · ${stats.awinReporting.transactionsAttributed.toLocaleString()} attributed`}
+              >
+                {stats.awinReporting.lastSyncError && (
+                  <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">Last error: {stats.awinReporting.lastSyncError}</p>
+                )}
+              </FinanceCard>
+            </div>
+
+            {/* ── TradeTracker ── */}
+            {ttStats && (
+              <div className="mt-5 grid gap-5 lg:grid-cols-2">
+                <FinanceCard
+                  title="TradeTracker — Total commissions"
+                  primary={`€${ttStats.revenue.totalCommission.toLocaleString("en-EU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  sub={`${ttStats.transactions.accepted.toLocaleString()} accepted · ${ttStats.transactions.attributed.toLocaleString()} attributed · ${ttStats.campaigns.accepted.toLocaleString()} campaigns`}
+                >
+                  <div className="flex flex-wrap gap-2">
+                    <ActionBtn variant="primary" disabled={syncing !== null} onClick={async () => {
+                      setSyncing("tt"); setSyncMessage(null);
+                      try {
+                        const res = await fetch("/api/admin/tradetracker/sync-transactions", { method: "POST", credentials: "include" });
+                        const data = await res.json().catch(() => ({}));
+                        setSyncMessage(res.ok ? `✓ TT: ${data.synced ?? data.upserted ?? 0} transactions synced.` : `✗ ${data.error ?? "Sync failed"}`);
+                        if (res.ok) await refreshStats();
+                      } catch { setSyncMessage("✗ TT sync failed"); }
+                      finally { setSyncing(null); }
+                    }}>
+                      {syncing === "tt" ? <><div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Syncing…</> : "Sync TradeTracker"}
+                    </ActionBtn>
+                    {ttStats.lastSync && (
+                      <span className="self-center text-[10px] text-gray-400">
+                        Last: {new Date(ttStats.lastSync.syncedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
+                  </div>
+                </FinanceCard>
+                <FinanceCard
+                  title="TradeTracker — Publisher earnings"
+                  primary={`€${ttStats.revenue.attributedEarnings.toLocaleString("en-EU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  sub={`${ttStats.transactions.total.toLocaleString()} total · ${ttStats.transactions.pending.toLocaleString()} pending · ${ttStats.transactions.rejected.toLocaleString()} rejected`}
+                />
               </div>
+            )}
+
+            {/* ── PaidOnResults ── */}
+            {porStats && (
+              <div className="mt-5 grid gap-5 lg:grid-cols-2">
+                <FinanceCard
+                  title="PaidOnResults — Commissions"
+                  primary={Object.entries(porStats.commissionByCurrency).length > 0
+                    ? Object.entries(porStats.commissionByCurrency).map(([c, v]) => `${c} ${v.toFixed(2)}`).join(" · ")
+                    : "£0.00"}
+                  sub={`${porStats.totalTransactions.toLocaleString()} transactions · ${porStats.joinedMerchants.toLocaleString()} joined merchants · Last sync: ${porStats.lastSyncAt ? new Date(porStats.lastSyncAt).toLocaleString() : "never"}`}
+                >
+                  <div className="flex flex-wrap gap-2">
+                    <ActionBtn variant="primary" disabled={syncing !== null} onClick={async () => {
+                      setSyncing("por"); setSyncMessage(null);
+                      try {
+                        const res = await fetch("/api/admin/por/sync-transactions", { method: "POST", credentials: "include" });
+                        const data = await res.json().catch(() => ({}));
+                        setSyncMessage(res.ok ? `✓ POR: ${data.upserted ?? 0} transactions synced.` : `✗ ${data.error ?? "Sync failed"}`);
+                        if (res.ok) await refreshStats();
+                      } catch { setSyncMessage("✗ POR sync failed"); }
+                      finally { setSyncing(null); }
+                    }}>
+                      {syncing === "por" ? <><div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Syncing…</> : "Sync PaidOnResults"}
+                    </ActionBtn>
+                    <ActionBtn variant="ghost" disabled={syncing !== null} onClick={async () => {
+                      setSyncing("por-merchants"); setSyncMessage(null);
+                      try {
+                        const res = await fetch("/api/admin/por/sync-merchants", { method: "POST", credentials: "include" });
+                        const data = await res.json().catch(() => ({}));
+                        setSyncMessage(res.ok ? `✓ POR: ${data.upserted ?? 0} merchants synced.` : `✗ ${data.error ?? "Failed"}`);
+                        if (res.ok) await refreshStats();
+                      } catch { setSyncMessage("✗ POR merchant sync failed"); }
+                      finally { setSyncing(null); }
+                    }}>
+                      {syncing === "por-merchants" ? "Syncing…" : "Sync merchants"}
+                    </ActionBtn>
+                  </div>
+                  {porStats.lastSyncError && (
+                    <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">Last error: {porStats.lastSyncError}</p>
+                  )}
+                </FinanceCard>
+                <FinanceCard
+                  title="PaidOnResults — Merchants"
+                  primary={porStats.totalMerchants.toLocaleString()}
+                  sub={`${porStats.joinedMerchants.toLocaleString()} joined · ${porStats.pendingApplications.toLocaleString()} pending publisher applications`}
+                />
+              </div>
+            )}
+          </section>
+
+          {/* ── Publishers earnings table ── */}
+          {publishersEarnings.length > 0 && (
+            <section>
+              <SectionTitle sub="From impact_publisher_earnings_daily rollup — attributed actions only">
+                Publisher earnings (last 30 days)
+              </SectionTitle>
+              <AdminTable heads={["Publisher", "Sale (gross) by currency", "Commission by currency"]}>
+                {publishersEarnings.slice(0, 25).map((p) => (
+                  <tr key={p.publisherId} className="border-b border-gray-50 transition-colors hover:bg-teal-50/40">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-gray-900">{p.username}</p>
+                      <p className="text-[11px] text-gray-400">{p.email}</p>
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs font-medium tabular-nums text-teal-600">
+                      {Object.entries(p.saleByCurrency ?? {}).filter(([, v]) => v > 0).map(([c, v]) => `${c} ${v.toFixed(2)}`).join(" · ") || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs font-semibold tabular-nums text-gray-700">
+                      {Object.entries(p.commissionByCurrency).filter(([, v]) => v > 0).map(([c, v]) => `${c} ${v.toFixed(2)}`).join(" · ") || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </AdminTable>
             </section>
           )}
 
-          <section className="mt-10">
-            <h2 className="text-lg font-semibold text-white">Activity by platform</h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              LinkHexa currently integrates Awin for programmes and short links. Other networks would appear as additional rows when connected.
-            </p>
-            <p className="mt-2 text-xs leading-relaxed text-zinc-600">
-              <span className="font-medium text-zinc-500">Awin conversions / gross / payout</span> below use{" "}
-              <strong className="text-zinc-400">rolling last 30 days (UTC)</strong> from{" "}
-              <strong className="text-zinc-400">every</strong> row in <code className="text-zinc-500">awin_transactions</code> in
-              that window (your synced Awin feed — network-level totals, not split by LinkHexa publisher). The smaller line
-              under <strong className="text-zinc-400">Conversions</strong> shows how many rows already have a{" "}
-              <code className="text-zinc-500">publisher_id</code>. For <strong className="text-zinc-400">who earned what</strong>,
-              use the <strong className="text-zinc-400">Publishers — sales &amp; commission</strong> table below (rollup /
-              attributed only).
-            </p>
+          {/* ── Activity by platform ── */}
+          <section>
+            <SectionTitle sub="Impact rolling last 30 days — all synced actions, not split by publisher">
+              Activity by platform
+            </SectionTitle>
             {stats.awinSyncOnDashboardLoad?.skippedReason && !stats.awinSyncOnDashboardLoad.ran && (
-              <p className="mt-2 text-xs text-zinc-500">{stats.awinSyncOnDashboardLoad.skippedReason}</p>
+              <p className="mb-3 text-xs text-gray-400">{stats.awinSyncOnDashboardLoad.skippedReason}</p>
             )}
             {stats.awinSyncOnDashboardLoad?.error && (
-              <p className="mt-2 text-xs text-amber-200/85" role="alert">
+              <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                 Auto-sync: {stats.awinSyncOnDashboardLoad.error}
               </p>
             )}
-            <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-900/70 shadow-lg shadow-black/20 backdrop-blur-sm">
-              <table className="w-full min-w-[720px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-white/10 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                    <th className="px-4 py-3">Platform</th>
-                    <th className="px-4 py-3">Programmes cached</th>
-                    <th className="px-4 py-3">Links</th>
-                    <th className="px-4 py-3">Clicks</th>
-                    <th className="px-4 py-3">Conversions</th>
-                    <th className="px-4 py-3">Gross on links</th>
-                    <th className="px-4 py-3">Application rows</th>
-                    <th className="px-4 py-3 text-right">Payout sum</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-white/5 text-zinc-300">
-                    <td className="px-4 py-3 font-medium text-white">Awin</td>
-                    <td className="px-4 py-3 tabular-nums">{stats.awinProgrammesCached.toLocaleString()}</td>
-                    <td className="px-4 py-3 tabular-nums">{stats.publisherGoLinks.count.toLocaleString()}</td>
-                    <td className="px-4 py-3 font-mono tabular-nums text-teal-400">
-                      {stats.publisherGoLinks.totalClicks.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">
-                      {stats.awinActivityLast30Days.transactionCount.toLocaleString()}
-                      {stats.awinActivityLast30Days.transactionCountAttributed > 0 && (
-                        <span className="mt-0.5 block text-[10px] font-normal text-zinc-500">
-                          {stats.awinActivityLast30Days.transactionCountAttributed.toLocaleString()} matched to a publisher
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-teal-400/90">
-                      {stats.awinActivityLast30Days.primarySaleCurrency && stats.awinActivityLast30Days.primarySale > 0
-                        ? formatMoney(
-                            stats.awinActivityLast30Days.primarySale,
-                            stats.awinActivityLast30Days.primarySaleCurrency
-                          )
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">{stats.brandApplications.total.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-white">
-                      {stats.awinActivityLast30Days.primaryCommissionCurrency &&
-                      stats.awinActivityLast30Days.primaryCommission > 0
-                        ? formatMoney(
-                            stats.awinActivityLast30Days.primaryCommission,
-                            stats.awinActivityLast30Days.primaryCommissionCurrency
-                          )
-                        : formatUsd(0)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-2 text-[10px] text-zinc-600">
-              Window: {stats.awinActivityLast30Days.fromYmd} → {stats.awinActivityLast30Days.toYmd} UTC · Gross and payout use the
-              strongest currency by volume in that window (see Sales / transactions for every row).
+            <AdminTable heads={["Platform", "Campaigns", "Links", "Clicks", "Transactions", "Attributed", "Payout"]}>
+              {/* Impact row */}
+              <tr className="border-b border-gray-50 transition-colors hover:bg-teal-50/40">
+                <td className="px-4 py-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-teal-100 bg-teal-50 px-2.5 py-1 text-[11px] font-bold text-teal-600">
+                    <span className="h-1.5 w-1.5 rounded-full bg-teal-400" /> Impact
+                  </span>
+                </td>
+                <td className="px-4 py-3 tabular-nums text-gray-600">
+                  {(stats.impactReporting?.campaignsCached ?? stats.awinProgrammesCached).toLocaleString()}
+                </td>
+                <td className="px-4 py-3 tabular-nums text-gray-600">{stats.publisherGoLinks.count.toLocaleString()}</td>
+                <td className="px-4 py-3 font-bold tabular-nums text-teal-600">{stats.publisherGoLinks.totalClicks.toLocaleString()}</td>
+                <td className="px-4 py-3 tabular-nums text-gray-600">
+                  {stats.awinActivityLast30Days.transactionCount.toLocaleString()}
+                  {stats.awinActivityLast30Days.transactionCountAttributed > 0 && (
+                    <span className="mt-0.5 block text-[10px] text-gray-400">
+                      {stats.awinActivityLast30Days.transactionCountAttributed.toLocaleString()} matched
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3 font-medium tabular-nums text-teal-600">
+                  {stats.awinActivityLast30Days.primarySaleCurrency && stats.awinActivityLast30Days.primarySale > 0
+                    ? formatMoney(stats.awinActivityLast30Days.primarySale, stats.awinActivityLast30Days.primarySaleCurrency)
+                    : "—"}
+                </td>
+                <td className="px-4 py-3 text-right font-bold tabular-nums text-gray-900">
+                  {stats.awinActivityLast30Days.primaryCommissionCurrency && stats.awinActivityLast30Days.primaryCommission > 0
+                    ? formatMoney(stats.awinActivityLast30Days.primaryCommission, stats.awinActivityLast30Days.primaryCommissionCurrency)
+                    : formatUsd(0)}
+                </td>
+              </tr>
+              {/* TradeTracker row */}
+              {ttStats && (
+                <tr className="border-b border-gray-50 transition-colors hover:bg-blue-50/30">
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-600">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-400" /> TradeTracker
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 tabular-nums text-gray-600">
+                    {ttStats.campaigns.accepted.toLocaleString()}
+                    <span className="mt-0.5 block text-[10px] text-gray-400">{ttStats.campaigns.total.toLocaleString()} total</span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-400">—</td>
+                  <td className="px-4 py-3 text-gray-400">—</td>
+                  <td className="px-4 py-3 tabular-nums text-gray-600">
+                    {ttStats.transactions.total.toLocaleString()}
+                    {ttStats.transactions.attributed > 0 && (
+                      <span className="mt-0.5 block text-[10px] text-gray-400">{ttStats.transactions.attributed.toLocaleString()} matched</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 font-medium tabular-nums text-blue-600">
+                    {ttStats.revenue.attributedEarnings > 0 ? `€${ttStats.revenue.attributedEarnings.toFixed(2)}` : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right font-bold tabular-nums text-gray-900">
+                    €{ttStats.revenue.totalCommission.toFixed(2)}
+                  </td>
+                </tr>
+              )}
+              {/* PaidOnResults row */}
+              {porStats && (
+                <tr className="border-b border-gray-50 transition-colors hover:bg-orange-50/30">
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-orange-100 bg-orange-50 px-2.5 py-1 text-[11px] font-bold text-orange-600">
+                      <span className="h-1.5 w-1.5 rounded-full bg-orange-400" /> PaidOnResults
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 tabular-nums text-gray-600">
+                    {porStats.joinedMerchants.toLocaleString()}
+                    <span className="mt-0.5 block text-[10px] text-gray-400">{porStats.totalMerchants.toLocaleString()} total</span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-400">—</td>
+                  <td className="px-4 py-3 text-gray-400">—</td>
+                  <td className="px-4 py-3 tabular-nums text-gray-600">
+                    {porStats.totalTransactions.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 font-medium tabular-nums text-orange-600">
+                    {Object.entries(porStats.commissionByCurrency).map(([c, v]) => `${c} ${v.toFixed(2)}`).join(" · ") || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right font-bold tabular-nums text-gray-900">
+                    {Object.entries(porStats.commissionByCurrency).map(([c, v]) => `${c} ${v.toFixed(2)}`).join(" · ") || "—"}
+                  </td>
+                </tr>
+              )}
+            </AdminTable>
+            <p className="mt-2 text-[10px] text-gray-400">
+              Window: {stats.awinActivityLast30Days.fromYmd} → {stats.awinActivityLast30Days.toYmd} UTC
             </p>
           </section>
 
-          <section className="mt-10 rounded-2xl border border-white/10 bg-zinc-900/50 p-5 backdrop-blur-sm">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-lg font-semibold text-white">Pending publisher approvals</h2>
-              <Link
-                href="/admin#admin-all-signups"
-                className="text-sm font-medium text-teal-400 hover:text-teal-300 hover:underline"
-              >
-                View all →
+          {/* ── Pending approvals ── */}
+          <section>
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <div className="h-5 w-1 rounded-full" style={{ background: "linear-gradient(180deg,#0d9488,#059669)" }} />
+                  <h2 className="text-base font-extrabold tracking-tight text-gray-900" style={{ letterSpacing: "-0.02em" }}>
+                    Pending publisher approvals
+                    {stats.pendingSignups.length > 0 && (
+                      <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-600">
+                        {stats.pendingSignups.length}
+                      </span>
+                    )}
+                  </h2>
+                </div>
+              </div>
+              <Link href="/admin#admin-all-signups"
+                className="flex items-center gap-1 rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 transition hover:bg-teal-100">
+                View all
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
               </Link>
             </div>
+
             {stats.pendingSignups.length === 0 ? (
-              <p className="mt-4 text-sm text-zinc-500">No pending approvals.</p>
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 py-10">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: "linear-gradient(135deg,#0d9488,#059669)" }}>
+                  <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-gray-400">All caught up — no pending approvals</p>
+              </div>
             ) : (
-              <ul className="mt-4 divide-y divide-white/5">
-                {stats.pendingSignups.map((p) => (
-                  <li key={p.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="font-medium text-white">{p.username}</p>
-                      <p className="text-xs text-zinc-500">{p.email}</p>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-zinc-500">
-                      <span className="capitalize">{p.role}</span>
-                      <span>{p.created_at ? new Date(p.created_at).toLocaleString() : "—"}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+                <ul className="divide-y divide-gray-50">
+                  {stats.pendingSignups.map((p) => (
+                    <li key={p.id} className="flex flex-col gap-1 px-5 py-3.5 transition-colors hover:bg-amber-50/40 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900">{p.username}</p>
+                        <p className="text-xs text-gray-400">{p.email}</p>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-semibold capitalize text-gray-500">{p.role}</span>
+                        <span className="text-gray-400">{p.created_at ? new Date(p.created_at).toLocaleString() : "—"}</span>
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 font-bold text-amber-600">Pending</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </section>
 
-          <footer className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 sm:flex-row">
-            <Link href="/" className="flex items-center gap-2 opacity-90 transition hover:opacity-100">
-              <Image src="/LinkHexa Logo Svg.svg" alt="LinkHexa" width={100} height={32} className="h-7 w-auto" />
+          {/* ── Footer ── */}
+          <footer className="flex flex-col items-center justify-between gap-4 border-t border-gray-100 pt-8 sm:flex-row">
+            <Link href="/" className="flex items-center gap-2.5">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg shadow-sm"
+                style={{ background: "linear-gradient(135deg,#0d9488,#059669)" }}>
+                <svg width="13" height="13" viewBox="0 0 18 18" fill="none">
+                  <path d="M3 9.5L9 3.5L15 9.5" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M3 13.5L9 7.5L15 13.5" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.45"/>
+                </svg>
+              </span>
+              <span className="text-sm font-extrabold text-gray-700" style={{ letterSpacing: "-0.02em" }}>
+                earn<span className="text-teal-600">ytics</span>
+              </span>
             </Link>
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-zinc-500">
-              <span>&copy; {new Date().getFullYear()} LinkHexa</span>
-              <Link href="/terms" className="hover:text-zinc-300">
-                Terms &amp; Conditions
-              </Link>
-              <Link href="/privacy" className="hover:text-zinc-300">
-                Privacy Policy
-              </Link>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-gray-400">
+              <span>&copy; {new Date().getFullYear()} Earnytics</span>
+              <Link href="/terms" className="hover:text-gray-600 hover:underline">Terms &amp; Conditions</Link>
+              <Link href="/privacy" className="hover:text-gray-600 hover:underline">Privacy Policy</Link>
             </div>
           </footer>
         </>
       )}
-    </>
+    </div>
   );
 }

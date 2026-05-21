@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import {
-  destinationsDiffer,
-  ensureAwinPrimaryClickRef,
-  resolveTrackedDestination,
-} from "@/lib/go-link-target";
 
 type Params = { params: Promise<{ slug: string }> };
-
-type ProgRow = { display_url: string | null; click_through_url: string | null } | null;
 
 export async function GET(_request: Request, { params }: Params) {
   const { slug } = await params;
@@ -19,7 +12,7 @@ export async function GET(_request: Request, { params }: Params) {
   const supabase = createServerSupabaseClient();
   const { data, error } = await supabase
     .from("publisher_go_links")
-    .select("target_url, programme_id, deep_link, awin_programmes(display_url, click_through_url)")
+    .select("target_url, campaign_id, deep_link")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -31,26 +24,8 @@ export async function GET(_request: Request, { params }: Params) {
   }
 
   let redirectUrl = data.target_url.trim();
-  const deepLink = Boolean(data.deep_link);
-  const programmeId = typeof data.programme_id === "number" ? data.programme_id : Number(data.programme_id);
-  const apRaw = data.awin_programmes as ProgRow | ProgRow[] | undefined;
-  const ap = Array.isArray(apRaw) ? apRaw[0] ?? null : apRaw ?? null;
-  const displayUrl = ap?.display_url ?? null;
-  const clickThrough = ap?.click_through_url ?? null;
-
-  if (!deepLink && Number.isFinite(programmeId)) {
-    const canonical = await resolveTrackedDestination(programmeId, displayUrl, clickThrough, slug);
-    if (canonical && destinationsDiffer(canonical, redirectUrl)) {
-      await supabase.from("publisher_go_links").update({ target_url: canonical }).eq("slug", slug);
-      redirectUrl = canonical;
-    }
-  }
-
-  const withClickRef = ensureAwinPrimaryClickRef(redirectUrl, slug);
-  if (withClickRef !== redirectUrl) {
-    redirectUrl = withClickRef;
-    void supabase.from("publisher_go_links").update({ target_url: withClickRef }).eq("slug", slug);
-  }
+  // campaign_id is set for Impact links — target_url already has SubId1=slug embedded.
+  // No URL mutation needed — just increment click count and redirect.
 
   const { error: incErr } = await supabase.rpc("increment_publisher_go_link_click", { p_slug: slug });
   void incErr;

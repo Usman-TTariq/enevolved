@@ -1,81 +1,39 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireApprovedPublisher } from "@/lib/publisher-session";
-import { applyUsdToAwinUpsertRows, isFxUsdEnabled } from "@/lib/awin/fx-frankfurter";
-import { collectAttributedDbTransactions } from "@/lib/publisher/collect-attributed-db-transactions";
-
-const PROGRAMME_ID_IN_CHUNK = 200;
 
 function parseDateBoundary(s: string | null, endOfDay: boolean): Date | null {
   if (!s?.trim()) return null;
   const d = new Date(s.trim());
   if (Number.isNaN(d.getTime())) return null;
-  if (endOfDay) {
-    d.setUTCHours(23, 59, 59, 999);
-  } else {
-    d.setUTCHours(0, 0, 0, 0);
-  }
+  endOfDay ? d.setUTCHours(23, 59, 59, 999) : d.setUTCHours(0, 0, 0, 0);
   return d;
 }
 
 function addMoney(bucket: Record<string, number>, currency: string | null | undefined, amount: number) {
-  const c = (currency ?? "GBP").toUpperCase().trim() || "GBP";
+  const c = (currency ?? "USD").toUpperCase().trim() || "USD";
   bucket[c] = (bucket[c] ?? 0) + (Number.isFinite(amount) ? amount : 0);
 }
 
-function scoreAdvertiser(a: { commissionUsdApprox: number; sales: number }): number {
-  return a.commissionUsdApprox * 1e6 + a.sales;
-}
-
-async function fetchProgrammeNameMap(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
-  programmeIds: number[]
-): Promise<Map<number, string>> {
-  const ids = [...new Set(programmeIds.filter((x) => Number.isFinite(x)))];
-  const out = new Map<number, string>();
-  for (let i = 0; i < ids.length; i += PROGRAMME_ID_IN_CHUNK) {
-    const chunk = ids.slice(i, i + PROGRAMME_ID_IN_CHUNK);
-    const { data, error } = await supabase.from("awin_programmes").select("programme_id, name").in("programme_id", chunk);
-    if (error) throw new Error(error.message);
-    for (const r of data ?? []) out.set(Number(r.programme_id), String(r.name ?? ""));
-  }
-  return out;
-}
-
-type LinkRow = {
-  slug: string;
-  click_count: number | null;
-  programme_id: number;
-  awin_programmes: { name?: string | null } | null;
-};
-
-type Agg = {
+type AdvertiserRow = {
+  advertiserId: string;
+  name: string;
+  logoUrl: string | null;
+  network: "Impact" | "TradeTracker" | "PaidOnResults";
+  clicks: number;
   sales: number;
+  leads: number;
   revenueByCurrency: Record<string, number>;
   commissionByCurrency: Record<string, number>;
-  /** Sum of `sale_amount_usd` (ECB/Frankfurter vs txn UTC date); filled at sync. */
-  revenueUsdApprox: number;
-  /** Sum of `commission_amount_usd`. */
-  commissionUsdApprox: number;
 };
 
-/**
- * Aggregated advertiser (programme) performance for the **signed-in publisher only**.
- * Transactions come from `collectAttributedDbTransactions` (same attribution as the dashboard — not raw Awin “whole account” totals).
- *
- * Query: `from` and `to` as YYYY-MM-DD (optional; defaults to last 365 days UTC).
- */
 export async function GET(request: Request) {
   const pub = await requireApprovedPublisher();
-  if (!pub.ok) {
-    return NextResponse.json({ error: pub.message }, { status: pub.status });
-  }
+  if (!pub.ok) return NextResponse.json({ error: pub.message }, { status: pub.status });
 
   const url = new URL(request.url);
   const toD = parseDateBoundary(url.searchParams.get("to"), true) ?? (() => {
-    const d = new Date();
-    d.setUTCHours(23, 59, 59, 999);
-    return d;
+    const d = new Date(); d.setUTCHours(23, 59, 59, 999); return d;
   })();
   let fromD = parseDateBoundary(url.searchParams.get("from"), false);
   if (!fromD) {
@@ -84,162 +42,227 @@ export async function GET(request: Request) {
     d.setUTCHours(0, 0, 0, 0);
     fromD = d;
   }
-  if (fromD.getTime() > toD.getTime()) {
+  if (fromD.getTime() > toD.getTime())
     return NextResponse.json({ error: "from must be on or before to" }, { status: 400 });
-  }
 
   const supabase = createServerSupabaseClient();
+  const fromIso = fromD.toISOString();
+  const toIso   = toD.toISOString();
 
-  const [{ data: linkRows, error: linkErr }, txns] = await Promise.all([
-    supabase
-      .from("publisher_go_links")
-      .select("slug, click_count, programme_id, awin_programmes(name)")
-      .eq("publisher_id", pub.userId),
-    collectAttributedDbTransactions(supabase, pub.userId, fromD, toD),
+  // ── 1. Publisher's go-links (click counts by campaign + network) ────────────
+  const { data: goLinks } = await supabase
+    .from("publisher_go_links")
+    .select("slug, click_count, campaign_id, network")
+    .eq("publisher_id", pub.userId);
+
+  const clicksByCampaign = new Map<string, number>();
+  for (const l of goLinks ?? []) {
+    const key = `${l.network}:${l.campaign_id}`;
+    clicksByCampaign.set(key, (clicksByCampaign.get(key) ?? 0) + Number(l.click_count ?? 0));
+  }
+  const totalClicks = [...clicksByCampaign.values()].reduce((s, v) => s + v, 0);
+
+  // ── 2. Impact actions ───────────────────────────────────────────────────────
+  const { data: impactActions } = await supabase
+    .from("impact_actions")
+    .select("campaign_id, action_status, payout, payout_currency, sale_amount, sale_currency, action_date")
+    .eq("publisher_id", pub.userId)
+    .gte("action_date", fromIso)
+    .lte("action_date", toIso)
+    .limit(5000);
+
+  // aggregate by campaign
+  const impactByCampaign = new Map<string, { sales: number; rev: Record<string, number>; comm: Record<string, number> }>();
+  for (const a of impactActions ?? []) {
+    const cid = String(a.campaign_id ?? "");
+    if (!cid) continue;
+    const cur = impactByCampaign.get(cid) ?? { sales: 0, rev: {}, comm: {} };
+    cur.sales += 1;
+    addMoney(cur.rev,  a.sale_currency,   Number(a.sale_amount ?? 0));
+    addMoney(cur.comm, a.payout_currency, Number(a.payout ?? 0));
+    impactByCampaign.set(cid, cur);
+  }
+
+  // ── 3. TradeTracker transactions ────────────────────────────────────────────
+  const { data: ttTxns } = await supabase
+    .from("tradetracker_transactions")
+    .select("tt_campaign_id, transaction_status, commission, order_amount, currency, registration_date")
+    .eq("publisher_id", pub.userId)
+    .gte("registration_date", fromIso)
+    .lte("registration_date", toIso)
+    .limit(5000);
+
+  // ── 3b. PaidOnResults transactions ──────────────────────────────────────────
+  const { data: porTxns } = await supabase
+    .from("por_transactions")
+    .select("merchant_id, transaction_status, affiliate_commission, order_value, currency, order_date")
+    .eq("publisher_id", pub.userId)
+    .gte("order_date", fromIso)
+    .lte("order_date", toIso)
+    .limit(5000);
+
+  const porByCampaign = new Map<string, { sales: number; rev: Record<string, number>; comm: Record<string, number> }>();
+  for (const t of porTxns ?? []) {
+    const cid = String(t.merchant_id ?? "");
+    if (!cid) continue;
+    const cur = porByCampaign.get(cid) ?? { sales: 0, rev: {}, comm: {} };
+    cur.sales += 1;
+    addMoney(cur.rev,  t.currency ?? "GBP", Number(t.order_value ?? 0));
+    addMoney(cur.comm, t.currency ?? "GBP", Number(t.affiliate_commission ?? 0));
+    porByCampaign.set(cid, cur);
+  }
+
+  const ttByCampaign = new Map<string, { sales: number; rev: Record<string, number>; comm: Record<string, number> }>();
+  for (const t of ttTxns ?? []) {
+    const cid = String(t.tt_campaign_id ?? "");
+    if (!cid) continue;
+    const cur = ttByCampaign.get(cid) ?? { sales: 0, rev: {}, comm: {} };
+    cur.sales += 1;
+    addMoney(cur.rev,  t.currency, Number(t.order_amount ?? 0));
+    addMoney(cur.comm, t.currency, Number(t.commission ?? 0));
+    ttByCampaign.set(cid, cur);
+  }
+
+  // ── 4. Campaign name + logo lookups ─────────────────────────────────────────
+  const impactIds = [...new Set([...impactByCampaign.keys(), ...(goLinks ?? []).filter(l => l.network === "impact").map(l => l.campaign_id)])];
+  const ttIds     = [...new Set([...ttByCampaign.keys(),    ...(goLinks ?? []).filter(l => l.network === "tradetracker").map(l => l.campaign_id)])];
+  const porIds    = [...new Set([...porByCampaign.keys(),   ...(goLinks ?? []).filter(l => l.network === "paidonresults").map(l => l.campaign_id)])];
+
+  const [{ data: impactCampaigns }, { data: ttCampaigns }, { data: porMerchants }] = await Promise.all([
+    impactIds.length > 0 ? supabase.from("impact_campaigns").select("impact_id, name, logo_url").in("impact_id", impactIds) : { data: [] },
+    ttIds.length  > 0    ? supabase.from("tradetracker_campaigns").select("tt_campaign_id, name, logo_url").in("tt_campaign_id", ttIds) : { data: [] },
+    porIds.length > 0    ? supabase.from("por_merchants").select("merchant_id, name, logo_url").in("merchant_id", porIds) : { data: [] },
   ]);
 
-  if (linkErr) {
-    return NextResponse.json({ error: linkErr.message }, { status: 500 });
+  const impactNameMap = new Map((impactCampaigns ?? []).map(c => [String(c.impact_id), { name: c.name, logo: c.logo_url }]));
+  const ttNameMap     = new Map((ttCampaigns     ?? []).map(c => [String(c.tt_campaign_id), { name: c.name, logo: c.logo_url }]));
+  const porNameMap    = new Map((porMerchants    ?? []).map(c => [String(c.merchant_id), { name: c.name, logo: c.logo_url }]));
+
+  // ── 5. Build advertiser rows ─────────────────────────────────────────────────
+  const rows: AdvertiserRow[] = [];
+
+  const kpiRev: Record<string, number>  = {};
+  const kpiComm: Record<string, number> = {};
+  let kpiSales = 0;
+
+  // Impact rows
+  for (const [cid, agg] of impactByCampaign) {
+    kpiSales += agg.sales;
+    Object.entries(agg.rev).forEach(([c, v])  => addMoney(kpiRev,  c, v));
+    Object.entries(agg.comm).forEach(([c, v]) => addMoney(kpiComm, c, v));
+    const meta = impactNameMap.get(cid);
+    const key  = `impact:${cid}`;
+    rows.push({
+      advertiserId: cid,
+      name:    meta?.name ?? `Campaign ${cid}`,
+      logoUrl: meta?.logo ?? null,
+      network: "Impact",
+      clicks:  clicksByCampaign.get(key) ?? 0,
+      sales:   agg.sales,
+      leads:   0,
+      revenueByCurrency:    agg.rev,
+      commissionByCurrency: agg.comm,
+    });
+  }
+  // Impact click-only rows (no transactions but has go-links)
+  for (const l of (goLinks ?? []).filter(l => l.network === "impact")) {
+    const cid = String(l.campaign_id ?? "");
+    if (!cid || impactByCampaign.has(cid)) continue;
+    const meta = impactNameMap.get(cid);
+    rows.push({
+      advertiserId: cid,
+      name:    meta?.name ?? `Campaign ${cid}`,
+      logoUrl: meta?.logo ?? null,
+      network: "Impact",
+      clicks:  clicksByCampaign.get(`impact:${cid}`) ?? 0,
+      sales:   0, leads: 0,
+      revenueByCurrency: {}, commissionByCurrency: {},
+    });
   }
 
-  const fxUsdApproxAvailable = isFxUsdEnabled();
-  if (fxUsdApproxAvailable && txns.length > 0) {
-    await applyUsdToAwinUpsertRows(supabase, txns);
+  // TradeTracker rows
+  for (const [cid, agg] of ttByCampaign) {
+    kpiSales += agg.sales;
+    Object.entries(agg.rev).forEach(([c, v])  => addMoney(kpiRev,  c, v));
+    Object.entries(agg.comm).forEach(([c, v]) => addMoney(kpiComm, c, v));
+    const meta = ttNameMap.get(cid);
+    const key  = `tradetracker:${cid}`;
+    rows.push({
+      advertiserId: cid,
+      name:    meta?.name ?? `TT Campaign ${cid}`,
+      logoUrl: meta?.logo ?? null,
+      network: "TradeTracker",
+      clicks:  clicksByCampaign.get(key) ?? 0,
+      sales:   agg.sales,
+      leads:   0,
+      revenueByCurrency:    agg.rev,
+      commissionByCurrency: agg.comm,
+    });
+  }
+  // TT click-only rows
+  for (const l of (goLinks ?? []).filter(l => l.network === "tradetracker")) {
+    const cid = String(l.campaign_id ?? "");
+    if (!cid || ttByCampaign.has(cid)) continue;
+    const meta = ttNameMap.get(cid);
+    rows.push({
+      advertiserId: cid,
+      name:    meta?.name ?? `TT Campaign ${cid}`,
+      logoUrl: meta?.logo ?? null,
+      network: "TradeTracker",
+      clicks:  clicksByCampaign.get(`tradetracker:${cid}`) ?? 0,
+      sales:   0, leads: 0,
+      revenueByCurrency: {}, commissionByCurrency: {},
+    });
   }
 
-  const links = (linkRows ?? []) as unknown as LinkRow[];
-
-  const clicksByProgramme = new Map<number, number>();
-  const slugsByProgramme = new Map<number, string[]>();
-  const nameFromLinks = new Map<number, string>();
-
-  for (const l of links) {
-    const pid = Number(l.programme_id);
-    if (!Number.isFinite(pid)) continue;
-    clicksByProgramme.set(pid, (clicksByProgramme.get(pid) ?? 0) + Number(l.click_count ?? 0));
-    const sl = String(l.slug ?? "").trim();
-    if (sl) {
-      const arr = slugsByProgramme.get(pid) ?? [];
-      if (!arr.includes(sl)) arr.push(sl);
-      slugsByProgramme.set(pid, arr);
-    }
-    const ap = l.awin_programmes as { name?: string | null } | null | undefined;
-    const nm = ap?.name?.trim();
-    if (nm) nameFromLinks.set(pid, nm);
+  // PaidOnResults rows
+  for (const [cid, agg] of porByCampaign) {
+    kpiSales += agg.sales;
+    Object.entries(agg.rev).forEach(([c, v])  => addMoney(kpiRev,  c, v));
+    Object.entries(agg.comm).forEach(([c, v]) => addMoney(kpiComm, c, v));
+    const meta = porNameMap.get(cid);
+    rows.push({
+      advertiserId: cid,
+      name:    meta?.name ?? `POR Merchant ${cid}`,
+      logoUrl: meta?.logo ?? null,
+      network: "PaidOnResults",
+      clicks:  clicksByCampaign.get(`paidonresults:${cid}`) ?? 0,
+      sales:   agg.sales, leads: 0,
+      revenueByCurrency: agg.rev, commissionByCurrency: agg.comm,
+    });
+  }
+  for (const l of (goLinks ?? []).filter(l => l.network === "paidonresults")) {
+    const cid = String(l.campaign_id ?? "");
+    if (!cid || porByCampaign.has(cid)) continue;
+    const meta = porNameMap.get(cid);
+    rows.push({
+      advertiserId: cid,
+      name:    meta?.name ?? `POR Merchant ${cid}`,
+      logoUrl: meta?.logo ?? null,
+      network: "PaidOnResults",
+      clicks:  clicksByCampaign.get(`paidonresults:${cid}`) ?? 0,
+      sales:   0, leads: 0,
+      revenueByCurrency: {}, commissionByCurrency: {},
+    });
   }
 
-  const kpiRevenueByCurrency: Record<string, number> = {};
-  const kpiCommissionByCurrency: Record<string, number> = {};
-  let kpiRevenueUsdApprox = 0;
-  let kpiCommissionUsdApprox = 0;
-
-  const byAdvertiser = new Map<number, Agg>();
-
-  for (const r of txns) {
-    addMoney(kpiCommissionByCurrency, r.commission_currency, Number(r.commission_amount ?? 0));
-    addMoney(kpiRevenueByCurrency, r.sale_currency, Number(r.sale_amount ?? 0));
-    kpiRevenueUsdApprox += Number(r.sale_amount_usd ?? 0);
-    kpiCommissionUsdApprox += Number(r.commission_amount_usd ?? 0);
-
-    const aid = r.advertiser_id;
-    if (aid == null || !Number.isFinite(Number(aid))) continue;
-    const id = Number(aid);
-    const cur = byAdvertiser.get(id) ?? {
-      sales: 0,
-      revenueByCurrency: {},
-      commissionByCurrency: {},
-      revenueUsdApprox: 0,
-      commissionUsdApprox: 0,
-    };
-    cur.sales += 1;
-    addMoney(cur.revenueByCurrency, r.sale_currency, Number(r.sale_amount ?? 0));
-    addMoney(cur.commissionByCurrency, r.commission_currency, Number(r.commission_amount ?? 0));
-    cur.revenueUsdApprox += Number(r.sale_amount_usd ?? 0);
-    cur.commissionUsdApprox += Number(r.commission_amount_usd ?? 0);
-    byAdvertiser.set(id, cur);
-  }
-
-  const programmeIds = [...new Set([...clicksByProgramme.keys(), ...byAdvertiser.keys()])].sort((a, b) => a - b);
-  let nameMap = new Map<number, string>();
-  try {
-    nameMap = await fetchProgrammeNameMap(supabase, programmeIds);
-  } catch {
-    // non-fatal
-  }
-
-  const advertisers = programmeIds.map((advertiserId) => {
-    const agg = byAdvertiser.get(advertiserId) ?? {
-      sales: 0,
-      revenueByCurrency: {},
-      commissionByCurrency: {},
-      revenueUsdApprox: 0,
-      commissionUsdApprox: 0,
-    };
-    const slugs = slugsByProgramme.get(advertiserId) ?? [];
-    const code = slugs.length <= 2 ? slugs.join(", ") : `${slugs.slice(0, 2).join(", ")} +${slugs.length - 2}`;
-    const name =
-      nameFromLinks.get(advertiserId) ||
-      nameMap.get(advertiserId)?.trim() ||
-      `Programme ${advertiserId}`;
-    return {
-      advertiserId,
-      name,
-      network: "Awin" as const,
-      code: code || "—",
-      clicks: clicksByProgramme.get(advertiserId) ?? 0,
-      sales: agg.sales,
-      leads: 0,
-      revenueByCurrency: agg.revenueByCurrency,
-      commissionByCurrency: agg.commissionByCurrency,
-      revenueUsdApprox: Math.round(agg.revenueUsdApprox * 1e6) / 1e6,
-      commissionUsdApprox: Math.round(agg.commissionUsdApprox * 1e6) / 1e6,
-    };
+  // Sort by commission desc, then clicks
+  rows.sort((a, b) => {
+    const sumComm = (r: AdvertiserRow) => Object.values(r.commissionByCurrency).reduce((s, v) => s + v, 0);
+    return sumComm(b) - sumComm(a) || b.clicks - a.clicks;
   });
-
-  advertisers.sort((a, b) => scoreAdvertiser(b) - scoreAdvertiser(a));
-
-  const totalClicks = [...clicksByProgramme.values()].reduce((s, v) => s + v, 0);
-
-  const distinctSlugs = new Set(links.map((l) => String(l.slug ?? "").trim()).filter(Boolean)).size;
-
-  let dbTransactionsWithPublisherIdInRange: number | null = null;
-  try {
-    let q = supabase
-      .from("awin_transactions")
-      .select("awin_transaction_id", { count: "exact", head: true })
-      .eq("publisher_id", pub.userId);
-    if (fromD) q = q.gte("transaction_date", fromD.toISOString());
-    if (toD) q = q.lte("transaction_date", toD.toISOString());
-    const { count, error } = await q;
-    if (!error) dbTransactionsWithPublisherIdInRange = count ?? 0;
-  } catch {
-    dbTransactionsWithPublisherIdInRange = null;
-  }
 
   return NextResponse.json({
     from: fromD.toISOString().slice(0, 10),
-    to: toD.toISOString().slice(0, 10),
-    /** False when `FX_USD_ENABLED=0` — USD columns are not computed. */
-    fxUsdApproxAvailable,
-    /** Same publisher as session; row count of attributed txns in range */
-    attributedTransactionCount: txns.length,
+    to:   toD.toISOString().slice(0, 10),
+    attributedTransactionCount: kpiSales,
     kpis: {
       totalClicks,
-      sales: txns.length,
-      leads: 0,
-      revenueByCurrency: kpiRevenueByCurrency,
-      commissionByCurrency: kpiCommissionByCurrency,
-      revenueUsdApprox: Math.round(kpiRevenueUsdApprox * 1e6) / 1e6,
-      commissionUsdApprox: Math.round(kpiCommissionUsdApprox * 1e6) / 1e6,
+      sales:  kpiSales,
+      leads:  0,
+      revenueByCurrency:    kpiRev,
+      commissionByCurrency: kpiComm,
     },
-    advertisers,
-    diagnostics: {
-      trackingLinkCount: links.length,
-      distinctSlugs,
-      /** Rows your publisher can read after merge + ownership filter (same as table “Sales”) */
-      attributedTransactionsInRange: txns.length,
-      /** Raw DB count where `publisher_id` = you (ignores slug-only path); if this is 0, sync never attributed you */
-      dbTransactionsWithPublisherIdInRange,
-    },
+    advertisers: rows,
   });
 }

@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 type AdvertiserRow = {
-  advertiserId: number;
+  advertiserId: string;
   name: string;
-  network: "Awin";
-  code: string;
+  logoUrl?: string | null;
+  network: "Impact" | "TradeTracker" | "PaidOnResults";
+  code?: string;
   clicks: number;
   sales: number;
   leads: number;
@@ -140,9 +141,8 @@ function downloadCsv(filename: string, csv: string) {
   URL.revokeObjectURL(url);
 }
 
-const card = "rounded-2xl border border-white/10 bg-zinc-900/70 p-5 shadow-lg shadow-black/20 backdrop-blur-sm";
-const kpiCard =
-  "rounded-xl border border-white/10 bg-zinc-950/60 px-4 py-4 shadow-inner shadow-black/20 sm:min-h-[100px]";
+const card = "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm";
+const kpiCard = "rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 sm:min-h-[100px]";
 
 export default function AdvertiserPerformanceReportContent() {
   const defaults = useMemo(() => defaultRangeYmd(), []);
@@ -282,78 +282,73 @@ export default function AdvertiserPerformanceReportContent() {
     <div className="mx-auto max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Reports</p>
-          <h1
-            className="text-2xl font-bold tracking-tight text-white sm:text-3xl"
-            style={{ fontFamily: "var(--font-libre-baskerville), serif" }}
-          >
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-400">Reports</p>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
             Advertiser performance
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-            Clicks, sales, and revenue for <strong className="text-zinc-300">your</strong> account only: same attribution as
-            the dashboard (Awin rows linked to your publisher id or your link slugs). Raw Awin network totals are not split
-            here per LinkHexa publisher — attribution happens after sync in our database.
+          <p className="mt-2 max-w-2xl text-sm text-gray-500">
+            Clicks, sales, and revenue for <strong className="text-gray-700">your</strong> account only: same attribution as
+            the dashboard (rows linked to your publisher id or your link slugs). Attribution happens after sync in our database.
           </p>
           {data && !loading && (
-            <p className="mt-2 text-xs text-zinc-500">
+            <p className="mt-2 text-xs text-gray-400">
               Attributed transactions in this range:{" "}
-              <span className="font-mono text-zinc-400">{data.attributedTransactionCount.toLocaleString()}</span>
+              <span className="font-mono text-gray-600">{data.attributedTransactionCount.toLocaleString()}</span>
             </p>
           )}
         </div>
 
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-          {/* Date range picker with dropdown */}
           <div className="relative" ref={presetRef}>
             <button
               type="button"
               onClick={() => setPresetOpen((o) => !o)}
-              className="flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-white/20 hover:bg-zinc-800/80"
+              className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                 <line x1="16" y1="2" x2="16" y2="6" />
                 <line x1="8" y1="2" x2="8" y2="6" />
                 <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
-              <span className="text-white">
+              <span className="text-gray-800">
                 {new Date(appliedFrom + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
                 {" "}&ndash;{" "}
                 {new Date(appliedTo + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
               </span>
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-zinc-500 transition ${presetOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 text-gray-400 transition ${presetOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path d="M6 9l6 6 6-6" />
               </svg>
             </button>
 
             {presetOpen && (
-              <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-zinc-900 shadow-2xl shadow-black/50">
-                <div className="border-b border-white/5 px-4 py-3">
+              <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+                <div className="border-b border-gray-100 px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <label className="flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                    <label className="flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
                       From
                       <input
                         type="date"
                         value={from}
                         onChange={(e) => { setFrom(e.target.value); setActivePreset(null); }}
-                        className="rounded-lg border border-white/10 bg-zinc-950 px-2.5 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50"
+                        className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs text-gray-800 outline-none focus:border-teal-400"
                       />
                     </label>
-                    <span className="mt-4 text-zinc-600">–</span>
-                    <label className="flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                    <span className="mt-4 text-gray-400">–</span>
+                    <label className="flex flex-col gap-1 text-[10px] font-medium uppercase tracking-wider text-gray-500">
                       To
                       <input
                         type="date"
                         value={to}
                         onChange={(e) => { setTo(e.target.value); setActivePreset(null); }}
-                        className="rounded-lg border border-white/10 bg-zinc-950 px-2.5 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50"
+                        className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs text-gray-800 outline-none focus:border-teal-400"
                       />
                     </label>
                   </div>
                   <button
                     type="button"
                     onClick={() => { applyRange(); setActivePreset(null); setPresetOpen(false); }}
-                    className="mt-2.5 w-full rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:from-indigo-500 hover:to-violet-500"
+                    className="mt-2.5 w-full rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700"
                   >
                     Apply Custom Range
                   </button>
@@ -366,8 +361,8 @@ export default function AdvertiserPerformanceReportContent() {
                       onClick={() => applyDatePreset(key)}
                       className={`flex w-full items-center px-4 py-2.5 text-left text-sm transition ${
                         activePreset === key
-                          ? "bg-indigo-600/20 font-semibold text-indigo-300"
-                          : "text-zinc-300 hover:bg-white/5 hover:text-white"
+                          ? "bg-teal-50 font-semibold text-teal-700"
+                          : "text-gray-700 hover:bg-gray-50"
                       }`}
                     >
                       {label}
@@ -382,9 +377,9 @@ export default function AdvertiserPerformanceReportContent() {
             type="button"
             disabled={!data || loading}
             onClick={() => exportCsv()}
-            className="flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-white/20 hover:bg-zinc-800/80 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
             </svg>
             Export
@@ -392,50 +387,38 @@ export default function AdvertiserPerformanceReportContent() {
         </div>
       </div>
 
-      <div
-        className="mb-6 rounded-xl border border-sky-500/25 bg-sky-500/[0.08] px-4 py-3 text-sm leading-relaxed text-sky-100/90"
-        role="note"
-      >
-        <span className="font-semibold text-sky-200">Notice · </span>
-        Figures are from your LinkHexa account: short-link <strong className="text-white">clicks</strong> per brand, and{" "}
-        <strong className="text-white">Awin</strong> rows attributed to you (publisher id or matching link slug in click
-        ref). Payout policy and platform fees are defined in your publisher agreement — not shown as a split here. Native
-        currencies are shown per row.
+      <div className="mb-6 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-relaxed text-sky-700" role="note">
+        <span className="font-semibold text-sky-800">Notice · </span>
+        Figures are from your Earnytics account: short-link <strong className="text-sky-900">clicks</strong> per brand, and{" "}
+        <strong className="text-sky-900">Impact</strong>, <strong className="text-sky-900">TradeTracker</strong> &amp; <strong className="text-sky-900">PaidOnResults</strong> transactions attributed to you.
+        Payout policy and platform fees are defined in your publisher agreement — not shown as a split here. Native currencies are shown per row.
       </div>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {[
-          { label: "Total clicks", value: loading ? "…" : (data?.kpis.totalClicks ?? 0).toLocaleString(), big: true },
-          { label: "Sales (txns)", value: loading ? "…" : (data?.kpis.sales ?? 0).toLocaleString(), big: true },
-          { label: "Leads", value: loading ? "…" : (data?.kpis.leads ?? 0).toLocaleString(), big: true },
+          { label: "Total clicks", value: loading ? "…" : (data?.kpis.totalClicks ?? 0).toLocaleString() },
+          { label: "Sales (txns)", value: loading ? "…" : (data?.kpis.sales ?? 0).toLocaleString() },
+          { label: "Leads", value: loading ? "…" : (data?.kpis.leads ?? 0).toLocaleString() },
         ].map((kpi) => (
           <div key={kpi.label} className={kpiCard}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{kpi.label}</p>
-            <p className="mt-2 text-xl font-bold tabular-nums tracking-tight text-white sm:text-2xl">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{kpi.label}</p>
+            <p className="mt-2 text-xl font-bold tabular-nums tracking-tight text-gray-900 sm:text-2xl">
               {kpi.value}
             </p>
           </div>
         ))}
 
         {[
-          {
-            label: "Total revenue",
-            bucket: data?.kpis.revenueByCurrency,
-            usd: data?.kpis.revenueUsdApprox,
-          },
-          {
-            label: "Total commission",
-            bucket: data?.kpis.commissionByCurrency,
-            usd: data?.kpis.commissionUsdApprox,
-          },
+          { label: "Total revenue", bucket: data?.kpis.revenueByCurrency, usd: data?.kpis.revenueUsdApprox },
+          { label: "Total commission", bucket: data?.kpis.commissionByCurrency, usd: data?.kpis.commissionUsdApprox },
         ].map((kpi) => (
           <div key={kpi.label} className={kpiCard}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{kpi.label}</p>
-            <p className="mt-2 text-base font-bold tabular-nums leading-snug tracking-tight text-white sm:text-lg">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{kpi.label}</p>
+            <p className="mt-2 text-base font-bold tabular-nums leading-snug tracking-tight text-gray-900 sm:text-lg">
               {loading ? "…" : formatCurrencyBucket(kpi.bucket)}
             </p>
             {!loading && data?.fxUsdApproxAvailable && kpi.usd != null && kpi.usd > 0 && (
-              <p className="mt-1 text-xs font-semibold tabular-nums text-emerald-400/90">
+              <p className="mt-1 text-xs font-semibold tabular-nums text-emerald-600">
                 ≈ {formatMoney(kpi.usd, "USD")}
               </p>
             )}
@@ -451,18 +434,18 @@ export default function AdvertiserPerformanceReportContent() {
               placeholder="Filter by advertiser…"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-zinc-950/80 px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-indigo-500/40 sm:max-w-md"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 sm:max-w-md"
             />
           </div>
-          <p className="shrink-0 text-sm text-zinc-500">
-            <span className="font-medium text-zinc-300">{filtered.length}</span> advertisers
+          <p className="shrink-0 text-sm text-gray-500">
+            <span className="font-medium text-gray-800">{filtered.length}</span> advertisers
           </p>
         </div>
 
-        <div className="mt-5 overflow-x-auto rounded-xl border border-white/5">
+        <div className="mt-5 overflow-x-auto rounded-xl border border-gray-100">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
-              <tr className="border-b border-white/5 bg-zinc-950/60 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold uppercase tracking-wider text-gray-500">
                 <th className="px-4 py-3">Advertiser</th>
                 <th className="px-4 py-3 text-right">Clicks</th>
                 <th className="px-4 py-3 text-right">Sales</th>
@@ -472,92 +455,102 @@ export default function AdvertiserPerformanceReportContent() {
                 <th className="px-4 py-3 text-right"> </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-gray-100">
               {loading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
-                    Loading…
-                  </td>
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400">Loading…</td>
                 </tr>
               )}
               {!loading && error && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-amber-200/90">
-                    {error}
-                  </td>
+                  <td colSpan={7} className="px-4 py-10 text-center text-red-500">{error}</td>
                 </tr>
               )}
               {!loading && !error && slice.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400">
                     No rows match this filter.{" "}
-                    <Link href="/dashboard/brands" className="font-medium text-indigo-400 hover:underline">
+                    <Link href="/dashboard/brands" className="font-medium text-teal-600 hover:underline">
                       Browse brands
                     </Link>{" "}
                     to create links.
                   </td>
                 </tr>
               )}
-              {!loading &&
-                !error &&
-                slice.map((r) => (
-                  <tr key={r.advertiserId} className="text-zinc-300">
-                    <td className="px-4 py-3 font-medium text-zinc-100">{r.name}</td>
-                    <td className="px-4 py-3 text-right font-mono tabular-nums text-white">{r.clicks.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-zinc-300">{r.sales.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-zinc-500">{r.leads}</td>
-                    <td className="max-w-[220px] px-4 py-3 text-right text-xs font-medium leading-snug text-teal-300/95 sm:text-sm">
+              {!loading && !error && slice.map((r) => {
+                const brandHref = r.network === "TradeTracker"
+                  ? `/dashboard/brands/tradetracker/${r.advertiserId}`
+                  : r.network === "PaidOnResults"
+                  ? `/dashboard/brands/por/${r.advertiserId}`
+                  : `/dashboard/brands/impact/${r.advertiserId}`;
+                return (
+                  <tr key={`${r.network}-${r.advertiserId}`} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        {r.logoUrl ? (
+                          <img src={r.logoUrl} alt={r.name}
+                            className="h-7 w-7 rounded-lg border border-gray-100 object-contain"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                        ) : (
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-black text-white"
+                            style={{ background: "linear-gradient(135deg,#0d9488,#059669)" }}>
+                            {r.name.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-gray-900">{r.name}</p>
+                          <span className={`text-[10px] font-semibold ${
+                            r.network === "TradeTracker" ? "text-purple-600"
+                            : r.network === "PaidOnResults" ? "text-orange-600"
+                            : "text-blue-600"}`}>
+                            {r.network}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono tabular-nums text-gray-800">{r.clicks.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">{r.sales.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-gray-500">{r.leads}</td>
+                    <td className="max-w-[220px] px-4 py-3 text-right text-xs font-medium leading-snug text-teal-700 sm:text-sm">
                       {formatCurrencyBucket(r.revenueByCurrency)}
                     </td>
-                    <td className="max-w-[220px] px-4 py-3 text-right text-xs font-medium leading-snug text-white sm:text-sm">
+                    <td className="max-w-[220px] px-4 py-3 text-right text-xs font-medium leading-snug text-gray-800 sm:text-sm">
                       {formatCurrencyBucket(r.commissionByCurrency)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/dashboard/brands/${r.advertiserId}`}
-                        className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 hover:underline"
-                      >
+                      <Link href={brandHref}
+                        className="text-xs font-semibold text-teal-600 hover:text-teal-700 hover:underline">
                         Open
                       </Link>
                     </td>
                   </tr>
-                ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
 
         <div className="mt-4 flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2 text-sm text-zinc-500">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
             <span>Show</span>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-200"
-            >
+            <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}
+              className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-700">
               {[10, 25, 50].map((n) => (
-                <option key={n} value={n}>
-                  {n} / page
-                </option>
+                <option key={n} value={n}>{n} / page</option>
               ))}
             </select>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-1">
             {visiblePages.map((p, idx) =>
               p === "gap" ? (
-                <span key={`gap-${idx}`} className="px-1 text-zinc-600">
-                  …
-                </span>
+                <span key={`gap-${idx}`} className="px-1 text-gray-400">…</span>
               ) : (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPage(p)}
+                <button key={p} type="button" onClick={() => setPage(p)}
                   className={`min-w-[2.25rem] rounded-lg px-2.5 py-1.5 text-sm font-medium transition ${
                     p === pageSafe
-                      ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/20"
-                      : "border border-white/10 bg-zinc-950 text-zinc-400 hover:border-white/20 hover:text-zinc-200"
-                  }`}
-                >
+                      ? "bg-teal-600 text-white shadow-sm"
+                      : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                  }`}>
                   {p}
                 </button>
               )

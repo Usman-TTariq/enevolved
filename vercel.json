@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/awin-transactions",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/impact-actions",
+      "schedule": "0 * * * *"
     }
   ]
 }

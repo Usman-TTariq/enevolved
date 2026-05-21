@@ -1,10 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useId, useMemo, useRef, useState } from "react";
 import PublisherSupportChat from "@/components/publisher/PublisherSupportChat";
 import type { GoLinkSummary } from "@/components/publisher/usePublisherDashboardData";
+
+function BrandLogo({ logoUrl, name }: { logoUrl?: string | null; name?: string | null }) {
+  const [failed, setFailed] = useState(false);
+  const letter = (name ?? "B").trim().slice(0, 1).toUpperCase();
+  if (logoUrl && !failed) {
+    return (
+      <img
+        src={logoUrl}
+        alt={name ?? ""}
+        onError={() => setFailed(true)}
+        className="h-7 w-7 shrink-0 rounded-lg object-contain border border-gray-100 bg-white p-0.5"
+      />
+    );
+  }
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-emerald-600 text-[10px] font-black text-white">
+      {letter}
+    </span>
+  );
+}
 
 function formatMoney(n: number, currency: string) {
   try {
@@ -195,7 +214,7 @@ function PerformanceEarningsChart({
 
   if (series.length === 0) {
     return (
-      <div className="flex h-[248px] flex-col items-center justify-center gap-2 rounded-xl border border-white/5 bg-zinc-950/50 px-4 text-center text-sm text-zinc-500">
+      <div className="flex h-[248px] flex-col items-center justify-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-4 text-center text-sm text-gray-400">
         <p>No chart data in this window.</p>
       </div>
     );
@@ -203,11 +222,11 @@ function PerformanceEarningsChart({
 
   if (!chart || (chart.maxComm <= 0 && chart.maxSale <= 0)) {
     return (
-      <div className="flex h-[248px] flex-col items-center justify-center gap-2 rounded-xl border border-white/5 bg-zinc-950/50 px-4 text-center text-sm text-zinc-500">
-        <p className="text-zinc-400">No attributed commission or sales in the last 31 days.</p>
-        <p className="max-w-md text-xs leading-relaxed text-zinc-500">
-          Link clicks on your short links are counted here, but the chart only uses <strong className="text-zinc-400">synced Awin</strong>{" "}
-          orders that match your link slug (click ref). Ask your admin to run an Awin transaction sync if you expect sales.
+      <div className="flex h-[248px] flex-col items-center justify-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-4 text-center text-sm text-gray-400">
+        <p className="text-gray-500">No attributed commission or sales in the last 31 days.</p>
+        <p className="max-w-md text-xs leading-relaxed text-gray-400">
+          Link clicks on your short links are counted here. The chart combines <strong className="text-gray-600">Impact</strong>{" "}
+          and <strong className="text-gray-600">TradeTracker</strong> commissions attributed to your links. Ask your admin to run a sync if you expect sales.
         </p>
       </div>
     );
@@ -221,23 +240,23 @@ function PerformanceEarningsChart({
   return (
     <div className="relative">
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-zinc-400">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-gray-400">
           {maxComm > 0 && (
             <span className="inline-flex items-center gap-1.5">
-              <span className="size-1.5 shrink-0 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.65)]" aria-hidden />
-              Commission <span className="text-zinc-600">(current · left)</span>
+              <span className="size-1.5 shrink-0 rounded-full bg-teal-500" aria-hidden />
+              Commission <span className="text-gray-400">(current · left)</span>
             </span>
           )}
           {maxPrevComm > 0 && (
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-px w-3.5 border-t border-dashed border-zinc-500" aria-hidden />
-              Commission <span className="text-zinc-600">(prior 31d · left)</span>
+              <span className="h-px w-3.5 border-t border-dashed border-gray-400" aria-hidden />
+              Commission <span className="text-gray-400">(prior 31d · left)</span>
             </span>
           )}
           {maxSale > 0 && (
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-px w-3.5 border-t border-dashed border-teal-400/90" aria-hidden />
-              Gross sales <span className="text-zinc-600">(current · right)</span>
+              <span className="h-px w-3.5 border-t border-dashed border-emerald-400" aria-hidden />
+              Gross sales <span className="text-gray-400">(current · right)</span>
             </span>
           )}
         </div>
@@ -263,9 +282,9 @@ function PerformanceEarningsChart({
       >
         <defs>
           <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgb(129,140,248)" stopOpacity="0.42" />
-            <stop offset="55%" stopColor="rgb(99,102,241)" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="rgb(99,102,241)" stopOpacity="0" />
+            <stop offset="0%" stopColor="rgb(13,148,136)" stopOpacity="0.25" />
+            <stop offset="60%" stopColor="rgb(13,148,136)" stopOpacity="0.06" />
+            <stop offset="100%" stopColor="rgb(13,148,136)" stopOpacity="0" />
           </linearGradient>
           <filter id={glowId} x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="1.2" result="b" />
@@ -277,14 +296,14 @@ function PerformanceEarningsChart({
         </defs>
         {gridRows.map((row, i) => (
           <g key={i}>
-            <line x1={padL} y1={row.y} x2={w - padR} y2={row.y} stroke="rgba(255,255,255,0.055)" strokeWidth="1" />
+            <line x1={padL} y1={row.y} x2={w - padR} y2={row.y} stroke="rgba(0,0,0,0.07)" strokeWidth="1" />
             {maxComm + maxPrevComm > 0 && (
-              <text x={2} y={row.y + 4} className="fill-indigo-200/88" style={{ fontSize: 9 }}>
+              <text x={2} y={row.y + 4} style={{ fontSize: 9, fill: "#0d9488" }}>
                 {axisTickMoney(row.vComm, currency, chart.leftMax)}
               </text>
             )}
             {maxSale > 0 && (
-              <text x={w - 2} y={row.y + 4} textAnchor="end" className="fill-teal-300/88" style={{ fontSize: 9 }}>
+              <text x={w - 2} y={row.y + 4} textAnchor="end" style={{ fontSize: 9, fill: "#059669" }}>
                 {axisTickMoney(row.vSale, currency, maxSale)}
               </text>
             )}
@@ -318,8 +337,8 @@ function PerformanceEarningsChart({
           <path
             d={commPath}
             fill="none"
-            stroke="rgb(165,180,252)"
-            strokeWidth="3"
+            stroke="rgb(13,148,136)"
+            strokeWidth="2.5"
             strokeLinejoin="round"
             strokeLinecap="round"
             filter={`url(#${glowId})`}
@@ -331,17 +350,17 @@ function PerformanceEarningsChart({
             y1={padT}
             x2={hx}
             y2={bottomY}
-            stroke="rgba(255,255,255,0.22)"
+            stroke="rgba(0,0,0,0.15)"
             strokeWidth="1"
             strokeDasharray="4 3"
             pointerEvents="none"
           />
         )}
         {hover !== null && maxComm > 0 && (
-          <circle cx={commPts[hover].x} cy={commPts[hover].y} r={5} fill="rgb(165,180,252)" stroke="rgb(24,24,27)" strokeWidth="2" pointerEvents="none" />
+          <circle cx={commPts[hover].x} cy={commPts[hover].y} r={5} fill="rgb(13,148,136)" stroke="white" strokeWidth="2" pointerEvents="none" />
         )}
         {hover !== null && maxSale > 0 && (
-          <circle cx={salePts[hover].x} cy={salePts[hover].y} r={4} fill="rgb(45,212,191)" stroke="rgb(24,24,27)" strokeWidth="2" pointerEvents="none" />
+          <circle cx={salePts[hover].x} cy={salePts[hover].y} r={4} fill="rgb(5,150,105)" stroke="white" strokeWidth="2" pointerEvents="none" />
         )}
         {series.map((s, i) => {
           if (i % 5 !== 0 && i !== series.length - 1) return null;
@@ -354,8 +373,7 @@ function PerformanceEarningsChart({
               x={x}
               y={h - 10}
               textAnchor="middle"
-              className={hover === i ? "fill-zinc-200" : "fill-zinc-500"}
-              style={{ fontSize: 9 }}
+              style={{ fontSize: 9, fill: hover === i ? "#374151" : "#9ca3af" }}
             >
               {day}
             </text>
@@ -365,36 +383,31 @@ function PerformanceEarningsChart({
 
       {hover !== null && dayLabel !== null && (
         <div
-          className="pointer-events-none absolute z-20 min-w-[9.5rem] -translate-x-1/2 rounded-lg border border-white/12 bg-zinc-900/95 px-3 py-2.5 shadow-xl shadow-black/40 backdrop-blur-sm"
-          style={{
-            left: `${(commPts[hover].x / w) * 100}%`,
-            top: 6,
-          }}
+          className="pointer-events-none absolute z-20 min-w-[9.5rem] -translate-x-1/2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-lg"
+          style={{ left: `${(commPts[hover].x / w) * 100}%`, top: 6 }}
         >
-          <p className="text-[11px] font-semibold tabular-nums text-white">Day {dayLabel}</p>
-          <p className="mt-1.5 space-y-1 text-[10px] leading-snug text-zinc-300">
+          <p className="text-[11px] font-semibold tabular-nums text-gray-800">Day {dayLabel}</p>
+          <div className="mt-1.5 space-y-1 text-[10px] leading-snug">
             <span className="flex items-center gap-2">
-              <span className="size-1.5 shrink-0 rounded-full bg-indigo-400" />
-              <span className="text-zinc-500">Commission</span>
-              <span className="ml-auto font-mono tabular-nums text-indigo-200">{formatMoney(series[hover].commission, currency)}</span>
+              <span className="size-1.5 shrink-0 rounded-full bg-teal-500" />
+              <span className="text-gray-500">Commission</span>
+              <span className="ml-auto font-mono tabular-nums text-teal-700">{formatMoney(series[hover].commission, currency)}</span>
             </span>
             {maxPrevComm > 0 && (
               <span className="flex items-center gap-2">
-                <span className="h-px w-2.5 shrink-0 border-t border-dashed border-zinc-500" />
-                <span className="text-zinc-500">Prior 31d</span>
-                <span className="ml-auto font-mono tabular-nums text-zinc-400">
-                  {formatMoney(prevAligned[hover]?.commission ?? 0, currency)}
-                </span>
+                <span className="h-px w-2.5 shrink-0 border-t border-dashed border-gray-400" />
+                <span className="text-gray-500">Prior 31d</span>
+                <span className="ml-auto font-mono tabular-nums text-gray-500">{formatMoney(prevAligned[hover]?.commission ?? 0, currency)}</span>
               </span>
             )}
             {maxSale > 0 && (
               <span className="flex items-center gap-2">
-                <span className="h-px w-2.5 shrink-0 border-t border-dashed border-teal-400" />
-                <span className="text-zinc-500">Gross sales</span>
-                <span className="ml-auto font-mono tabular-nums text-teal-300/95">{formatMoney(series[hover].sale, currency)}</span>
+                <span className="h-px w-2.5 shrink-0 border-t border-dashed border-emerald-400" />
+                <span className="text-gray-500">Gross sales</span>
+                <span className="ml-auto font-mono tabular-nums text-emerald-700">{formatMoney(series[hover].sale, currency)}</span>
               </span>
             )}
-          </p>
+          </div>
         </div>
       )}
     </div>
@@ -450,7 +463,7 @@ export default function PublisherDashboardMain({
   topBrandsByClicks,
   newestLinks,
 }: MainProps) {
-  const cardBase = "rounded-2xl border border-white/10 bg-zinc-900/70 p-5 shadow-lg shadow-black/20 backdrop-blur-sm";
+  const cardBase = "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm";
 
   return (
     <div className="min-h-screen pb-16">
@@ -458,32 +471,25 @@ export default function PublisherDashboardMain({
       <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Overview</p>
-            <h1
-              className="text-2xl font-bold tracking-tight text-white sm:text-3xl"
-              style={{ fontFamily: "var(--font-libre-baskerville), serif" }}
-            >
+            <p className="text-xs font-medium uppercase tracking-wider text-gray-400">Overview</p>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
               Dashboard
             </h1>
-            <p className="mt-1 text-sm text-zinc-400">
-              Hi {displayName} — attributed Awin performance in {primaryCurrency}.{" "}
-              <Link href="/dashboard/detailed" className="font-medium text-indigo-400 hover:text-indigo-300 hover:underline">
+            <p className="mt-1 text-sm text-gray-500">
+              Hi {displayName} — Impact performance in {primaryCurrency}.{" "}
+              <Link href="/dashboard/detailed" className="font-medium text-teal-600 hover:text-teal-700 hover:underline">
                 Detailed dashboard
               </Link>{" "}
               for links table, raw sales, diagnostics, and multi-currency breakdown.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link
-              href="/dashboard/brands"
-              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/25 transition hover:from-indigo-500 hover:to-violet-500"
-            >
+            <Link href="/dashboard/brands"
+              className="inline-flex items-center justify-center rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700">
               Browse brands
             </Link>
-            <Link
-              href="/dashboard/brands?filter=approved"
-              className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-white/25 hover:bg-white/10"
-            >
+            <Link href="/dashboard/brands?filter=approved"
+              className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
               My brands
             </Link>
           </div>
@@ -492,33 +498,33 @@ export default function PublisherDashboardMain({
         <div className="grid gap-6 lg:grid-cols-[minmax(0,300px)_1fr]">
           {/* Left: earnings snapshot */}
           <aside className="flex flex-col gap-4">
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/80 shadow-lg shadow-black/25">
-              <div className="bg-gradient-to-r from-rose-600/90 via-fuchsia-600/85 to-indigo-600/90 px-4 py-3">
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div className="bg-gradient-to-r from-teal-600 via-teal-500 to-emerald-500 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-white/90">Earnings snapshot</p>
                 <p className="mt-0.5 text-[11px] text-white/75">Last 30 days · {primaryCurrency}</p>
               </div>
               <div className="space-y-3 p-4">
-                <div className="flex items-baseline justify-between gap-2 border-b border-white/5 pb-3">
-                  <span className="text-xs text-zinc-500">Commission</span>
-                  <span className="text-lg font-bold tabular-nums text-white">
+                <div className="flex items-baseline justify-between gap-2 border-b border-gray-100 pb-3">
+                  <span className="text-xs text-gray-500">Commission</span>
+                  <span className="text-lg font-bold tabular-nums text-gray-900">
                     {earningsLoading ? "…" : formatMoney(commissionLast30, primaryCurrency)}
                   </span>
                 </div>
-                <div className="flex items-baseline justify-between gap-2 border-b border-white/5 pb-3">
-                  <span className="text-xs text-zinc-500">Sales (order value)</span>
-                  <span className="text-lg font-bold tabular-nums text-teal-300/95">
+                <div className="flex items-baseline justify-between gap-2 border-b border-gray-100 pb-3">
+                  <span className="text-xs text-gray-500">Sales (order value)</span>
+                  <span className="text-lg font-bold tabular-nums text-emerald-600">
                     {earningsLoading ? "…" : formatMoney(saleLast30, primaryCurrency)}
                   </span>
                 </div>
-                <div className="flex items-baseline justify-between gap-2 border-b border-white/5 pb-3">
-                  <span className="text-xs text-zinc-500">Today · commission</span>
-                  <span className="text-base font-semibold tabular-nums text-white">
+                <div className="flex items-baseline justify-between gap-2 border-b border-gray-100 pb-3">
+                  <span className="text-xs text-gray-500">Today · commission</span>
+                  <span className="text-base font-semibold tabular-nums text-gray-800">
                     {earningsLoading ? "…" : formatMoney(commissionToday, primaryCurrency)}
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-xs text-zinc-500">Last 7 days · commission</span>
-                  <span className="text-base font-semibold tabular-nums text-indigo-200">
+                  <span className="text-xs text-gray-500">Last 7 days · commission</span>
+                  <span className="text-base font-semibold tabular-nums text-teal-700">
                     {earningsLoading ? "…" : formatMoney(commissionLast7, primaryCurrency)}
                   </span>
                 </div>
@@ -526,17 +532,14 @@ export default function PublisherDashboardMain({
             </div>
 
             <div className={`${cardBase} !p-4`}>
-              <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">Tracking links</p>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-white">{goLinksLoading ? "…" : goLinks.length}</p>
-              <p className="mt-1 text-xs text-zinc-500">Active short links</p>
-              <p className="mt-3 text-sm tabular-nums text-zinc-300">
-                <span className="text-zinc-500">Clicks · </span>
+              <p className="text-xs font-medium uppercase tracking-wider text-gray-400">Tracking links</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-gray-900">{goLinksLoading ? "…" : goLinks.length}</p>
+              <p className="mt-1 text-xs text-gray-400">Active short links</p>
+              <p className="mt-3 text-sm tabular-nums text-gray-600">
+                <span className="text-gray-400">Clicks · </span>
                 {goLinksLoading ? "…" : totalLinkClicks.toLocaleString()}
               </p>
-              <Link
-                href="/dashboard/detailed#tracking-links"
-                className="mt-4 inline-block text-xs font-semibold text-indigo-400 hover:text-indigo-300 hover:underline"
-              >
+              <Link href="/dashboard/detailed#tracking-links" className="mt-4 inline-block text-xs font-semibold text-teal-600 hover:text-teal-700 hover:underline">
                 Manage in detailed view →
               </Link>
             </div>
@@ -545,16 +548,15 @@ export default function PublisherDashboardMain({
           {/* Main column */}
           <div className="flex min-w-0 flex-col gap-6">
             <div className={cardBase}>
-              <h2 className="text-lg font-semibold text-white">Performance</h2>
-              <p className="mt-1 text-xs text-zinc-500">
-                Totals use your reporting window (synced Awin rows attributed to your link slugs). Chart: last 31 UTC days in{" "}
-                {primaryCurrency} — <span className="text-indigo-300/90">commission</span> (smooth line + fill, left),{" "}
-                <span className="text-zinc-400">prior 31d commission</span> (dashed grey, same axis),{" "}
-                <span className="text-teal-400/90">gross sales</span> (dashed, right). Sales use a separate scale so commission stays
-                readable. Hover for a vertical guide and values.
+              <h2 className="text-lg font-semibold text-gray-900">Performance</h2>
+              <p className="mt-1 text-xs text-gray-400">
+                Chart: last 31 days in {primaryCurrency} · Impact + TradeTracker —{" "}
+                <span className="text-teal-600">commission</span> (line + fill, left),{" "}
+                <span className="text-gray-400">prior 31d</span> (dashed, same axis),{" "}
+                <span className="text-emerald-600">gross sales</span> (dashed, right). Hover for values.
               </p>
               {earningsError && (
-                <p className="mt-3 text-sm text-amber-200/90" role="alert">
+                <p className="mt-3 text-sm text-amber-600 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200" role="alert">
                   {earningsError}
                 </p>
               )}
@@ -566,108 +568,62 @@ export default function PublisherDashboardMain({
                     { label: "Total sales", value: windowTotalSalePrimary, saleTone: true },
                   ] as const
                 ).map((kpi) => (
-                  <div
-                    key={kpi.label}
-                    className="rounded-xl border border-white/10 bg-zinc-950/60 px-4 py-3 sm:min-h-[88px]"
-                  >
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">{kpi.label}</p>
-                    <p
-                      className={`mt-1 text-xl font-bold tabular-nums tracking-tight ${
-                        "saleTone" in kpi && kpi.saleTone ? "text-teal-300/95" : "text-white"
-                      }`}
-                    >
-                      {earningsLoading
-                        ? "…"
-                        : "isCount" in kpi && kpi.isCount
-                          ? Math.round(kpi.value).toLocaleString()
-                          : formatCompactMoney(kpi.value, primaryCurrency)}
+                  <div key={kpi.label} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 sm:min-h-[88px]">
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-gray-400">{kpi.label}</p>
+                    <p className={`mt-1 text-xl font-bold tabular-nums tracking-tight ${"saleTone" in kpi && kpi.saleTone ? "text-emerald-600" : "text-gray-900"}`}>
+                      {earningsLoading ? "…" : "isCount" in kpi && kpi.isCount
+                        ? Math.round(kpi.value).toLocaleString()
+                        : formatCompactMoney(kpi.value, primaryCurrency)}
                     </p>
                   </div>
                 ))}
               </div>
               {performanceRolling31Trends && (
-                <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-zinc-500">
-                  <span className="font-medium text-zinc-400">Rolling 31d vs prior 31d</span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-zinc-600">Commission</span>
-                    <span
-                      className={
-                        performanceRolling31Trends.commissionPct === null
-                          ? "text-zinc-400"
-                          : performanceRolling31Trends.commissionPct >= 0
-                            ? "text-emerald-400/90"
-                            : "text-rose-400/90"
-                      }
-                    >
-                      {formatRollingTrendPct(performanceRolling31Trends.commissionPct)}
+                <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-gray-400">
+                  <span className="font-medium text-gray-600">Rolling 31d vs prior 31d</span>
+                  {[
+                    { label: "Commission", pct: performanceRolling31Trends.commissionPct },
+                    { label: "Sales", pct: performanceRolling31Trends.salePct },
+                    { label: "Transactions", pct: performanceRolling31Trends.transactionsPct },
+                  ].map(({ label, pct }) => (
+                    <span key={label} className="inline-flex items-center gap-1">
+                      <span className="text-gray-400">{label}</span>
+                      <span className={pct === null ? "text-gray-400" : pct >= 0 ? "text-emerald-600" : "text-red-500"}>
+                        {formatRollingTrendPct(pct)}
+                      </span>
                     </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-zinc-600">Sales</span>
-                    <span
-                      className={
-                        performanceRolling31Trends.salePct === null
-                          ? "text-zinc-400"
-                          : performanceRolling31Trends.salePct >= 0
-                            ? "text-emerald-400/90"
-                            : "text-rose-400/90"
-                      }
-                    >
-                      {formatRollingTrendPct(performanceRolling31Trends.salePct)}
-                    </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-zinc-600">Transactions</span>
-                    <span
-                      className={
-                        performanceRolling31Trends.transactionsPct === null
-                          ? "text-zinc-400"
-                          : performanceRolling31Trends.transactionsPct >= 0
-                            ? "text-emerald-400/90"
-                            : "text-rose-400/90"
-                      }
-                    >
-                      {formatRollingTrendPct(performanceRolling31Trends.transactionsPct)}
-                    </span>
-                  </span>
+                  ))}
                 </p>
               )}
-              <div className="mt-4 rounded-xl border border-white/5 bg-zinc-950/40 px-2 pb-2 pt-3">
-                <PerformanceEarningsChart
-                  series={performanceChartSeries}
-                  previousSeries={performanceChartSeriesPrevious}
-                  currency={primaryCurrency}
-                />
+              <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 px-2 pb-2 pt-3">
+                <PerformanceEarningsChart series={performanceChartSeries} previousSeries={performanceChartSeriesPrevious} currency={primaryCurrency} />
               </div>
-              <p className="mt-3 text-center text-[11px] text-zinc-500">
-                Day labels are UTC (dd of month). Clicks on your links are not plotted here — only attributed Awin commission/sale
-                per day. For tables and diagnostics see{" "}
-                <Link href="/dashboard/detailed" className="font-medium text-indigo-400 hover:underline">
-                  Detailed dashboard
-                </Link>
-                .
+              <p className="mt-3 text-center text-[11px] text-gray-400">
+                Day labels are UTC (dd of month). For tables and diagnostics see{" "}
+                <Link href="/dashboard/detailed" className="font-medium text-teal-600 hover:underline">Detailed dashboard</Link>.
               </p>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
               <div className={cardBase}>
-                <h3 className="text-sm font-semibold text-white">Top brands by clicks</h3>
-                <p className="mt-1 text-xs text-zinc-500">Your LinkHexa short links · click counts on our redirect.</p>
+                <h3 className="text-sm font-semibold text-gray-800">Top brands by clicks</h3>
+                <p className="mt-1 text-xs text-gray-400">Your Earnytics short links · click counts.</p>
                 {goLinksLoading ? (
-                  <p className="mt-4 text-sm text-zinc-500">Loading…</p>
+                  <p className="mt-4 text-sm text-gray-400">Loading…</p>
                 ) : goLinksError ? (
-                  <p className="mt-4 text-sm text-amber-200/90">{goLinksError}</p>
+                  <p className="mt-4 text-sm text-amber-600">{goLinksError}</p>
                 ) : topBrandsByClicks.length === 0 ? (
-                  <p className="mt-4 text-sm text-zinc-500">No links yet. Approve on a brand and create a tracking link.</p>
+                  <p className="mt-4 text-sm text-gray-400">No links yet. Approve on a brand and create a tracking link.</p>
                 ) : (
-                  <ol className="mt-4 space-y-3">
+                  <ol className="mt-4 space-y-2.5">
                     {topBrandsByClicks.map((row, i) => (
-                      <li key={row.slug} className="flex items-center justify-between gap-3 text-sm">
-                        <span className="min-w-0 truncate text-zinc-300">
-                          <span className="mr-2 font-mono text-xs text-zinc-600">{i + 1}.</span>
-                          {row.brandName ?? `Programme ${row.programmeId}`}
-                        </span>
-                        <span className="shrink-0 font-mono tabular-nums text-white">
+                      <li key={row.slug} className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="w-4 shrink-0 text-right font-mono text-[10px] text-gray-300">{i + 1}.</span>
+                          <BrandLogo logoUrl={row.logoUrl} name={row.brandName} />
+                          <span className="min-w-0 truncate text-sm text-gray-700">{row.brandName ?? String(row.programmeId ?? "Brand")}</span>
+                        </div>
+                        <span className="shrink-0 font-mono text-sm tabular-nums text-gray-900">
                           {Number(row.clickCount ?? 0).toLocaleString()}
                         </span>
                       </li>
@@ -677,24 +633,22 @@ export default function PublisherDashboardMain({
               </div>
 
               <div className={cardBase}>
-                <h3 className="text-sm font-semibold text-white">Newest links</h3>
-                <p className="mt-1 text-xs text-zinc-500">Recently created short URLs.</p>
+                <h3 className="text-sm font-semibold text-gray-800">Newest links</h3>
+                <p className="mt-1 text-xs text-gray-400">Recently created short URLs.</p>
                 {goLinksLoading ? (
-                  <p className="mt-4 text-sm text-zinc-500">Loading…</p>
+                  <p className="mt-4 text-sm text-gray-400">Loading…</p>
                 ) : newestLinks.length === 0 ? (
-                  <p className="mt-4 text-sm text-zinc-500">Nothing here yet.</p>
+                  <p className="mt-4 text-sm text-gray-400">Nothing here yet.</p>
                 ) : (
-                  <ol className="mt-4 space-y-3">
+                  <ol className="mt-4 space-y-2.5">
                     {newestLinks.map((row, i) => (
-                      <li key={row.slug} className="flex items-center justify-between gap-3 text-sm">
-                        <span className="min-w-0 truncate text-zinc-300">
-                          <span className="mr-2 font-mono text-xs text-zinc-600">{i + 1}.</span>
-                          {row.brandName ?? `Programme ${row.programmeId}`}
-                        </span>
-                        <Link
-                          href={`/dashboard/brands/${row.programmeId}`}
-                          className="shrink-0 text-xs font-semibold text-indigo-400 hover:text-indigo-300"
-                        >
+                      <li key={row.slug} className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="w-4 shrink-0 text-right font-mono text-[10px] text-gray-300">{i + 1}.</span>
+                          <BrandLogo logoUrl={row.logoUrl} name={row.brandName} />
+                          <span className="min-w-0 truncate text-sm text-gray-700">{row.brandName ?? String(row.programmeId ?? "Brand")}</span>
+                        </div>
+                        <Link href={`/dashboard/brands/impact/${row.programmeId}`} className="shrink-0 text-xs font-semibold text-teal-600 hover:text-teal-700">
                           Open
                         </Link>
                       </li>
@@ -706,21 +660,22 @@ export default function PublisherDashboardMain({
           </div>
         </div>
 
-        <footer className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 sm:flex-row">
-          <Link href="/" className="flex items-center gap-2 opacity-90 transition hover:opacity-100">
-            <Image src="/LinkHexa Logo Svg.svg" alt="LinkHexa" width={100} height={32} className="h-7 w-auto" />
+        <footer className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-gray-100 pt-8 sm:flex-row">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-teal-600">
+              <svg width="14" height="14" viewBox="0 0 18 18" fill="none" aria-hidden>
+                <rect x="2" y="3" width="14" height="2.2" rx="1.1" fill="white"/>
+                <rect x="2" y="7.9" width="10" height="2.2" rx="1.1" fill="white"/>
+                <rect x="2" y="12.8" width="14" height="2.2" rx="1.1" fill="white"/>
+              </svg>
+            </div>
+            <span className="text-sm font-bold text-gray-700">earnytics</span>
           </Link>
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-zinc-500">
-            <span>&copy; {new Date().getFullYear()} LinkHexa</span>
-            <Link href="/privacy" className="hover:text-zinc-300">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-zinc-300">
-              Terms
-            </Link>
-            <Link href="/contact" className="hover:text-zinc-300">
-              Contact
-            </Link>
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-gray-400">
+            <span>&copy; {new Date().getFullYear()} Earnytics</span>
+            <Link href="/privacy" className="hover:text-gray-600">Privacy</Link>
+            <Link href="/terms" className="hover:text-gray-600">Terms</Link>
+            <Link href="/contact" className="hover:text-gray-600">Contact</Link>
           </div>
         </footer>
       </div>

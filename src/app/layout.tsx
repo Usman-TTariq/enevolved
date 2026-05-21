@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Geist, Geist_Mono, Libre_Baskerville } from "next/font/google";
+import { Geist, Geist_Mono, Libre_Baskerville, Plus_Jakarta_Sans } from "next/font/google";
+import { LocaleProvider } from "@/contexts/LocaleContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,22 +20,26 @@ const libreBaskerville = Libre_Baskerville({
   weight: ["400", "700"],
 });
 
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+});
+
 export const metadata: Metadata = {
-  title: "LinkHexa | Performance Affiliate Marketing Network",
+  title: "Earnytics | Performance Affiliate Marketing Network",
   description:
-    "LinkHexa connects advertisers with high-quality affiliates to drive performance marketing results. Manage campaigns, track sales, and grow faster.",
-  keywords: ["affiliate marketing", "performance marketing", "advertisers", "publishers", "LinkHexa"],
+    "Earnytics connects advertisers with high-quality affiliates to drive performance marketing results. Manage campaigns, track sales, and grow faster.",
+  keywords: ["affiliate marketing", "performance marketing", "advertisers", "publishers", "Earnytics"],
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/icon.png", sizes: "32x32", type: "image/png" },
     ],
     shortcut: "/favicon.svg",
-    apple: "/apple-icon.png",
   },
   openGraph: {
-    title: "LinkHexa | Performance Affiliate Marketing Network",
-    description: "LinkHexa connects advertisers with high-quality affiliates to drive performance marketing results. Manage campaigns, track sales, and grow faster.",
+    title: "Earnytics | Performance Affiliate Marketing Network",
+    description: "Earnytics connects advertisers with high-quality affiliates to drive performance marketing results. Manage campaigns, track sales, and grow faster.",
   },
   verification: {
     google: "AMjBikCyQsL6-DwyFhxfdBZyWLfzUyZx-bmRbhrozZU",
@@ -49,7 +54,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${libreBaskerville.variable} antialiased bg-[var(--background)] text-[var(--foreground)]`}
+        className={`${geistSans.variable} ${geistMono.variable} ${libreBaskerville.variable} ${plusJakartaSans.variable} antialiased bg-[var(--background)] text-[var(--foreground)]`}
         suppressHydrationWarning
       >
         <Script
@@ -91,9 +96,11 @@ export default function RootLayout({
             `.trim(),
           }}
         />
-        <div suppressHydrationWarning>
-          {children}
-        </div>
+        <LocaleProvider>
+          <div suppressHydrationWarning>
+            {children}
+          </div>
+        </LocaleProvider>
       </body>
     </html>
   );

@@ -17,20 +17,34 @@ function startDateUtc(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function rollupHasNonZeroActivity(list: { commission_total: unknown; sale_total: unknown; txn_count: unknown }[]): boolean {
+type Row = {
+  earn_date: string;
+  currency: string;
+  // Impact schema uses payout_total + action_count
+  payout_total?: number | string | null;
+  action_count?: number | string | null;
+  sale_total?: number | string | null;
+  // Awin/legacy schema uses commission_total + txn_count (fallback)
+  commission_total?: number | string | null;
+  txn_count?: number | string | null;
+};
+
+function rowCommission(r: Row): number {
+  return Number(r.payout_total ?? r.commission_total ?? 0);
+}
+function rowTxns(r: Row): number {
+  return Number(r.action_count ?? r.txn_count ?? 0);
+}
+function rowSale(r: Row): number {
+  return Number(r.sale_total ?? 0);
+}
+
+function rollupHasNonZeroActivity(list: Row[]): boolean {
   return list.some(
-    (r) =>
-      Number(r.commission_total ?? 0) !== 0 ||
-      Number(r.sale_total ?? 0) !== 0 ||
-      Number(r.txn_count ?? 0) !== 0
+    (r) => rowCommission(r) !== 0 || rowSale(r) !== 0 || rowTxns(r) !== 0
   );
 }
 
-/**
- * Fast read from `publisher_earnings_daily` (populated by Awin sync).
- * Live rebuild from `awin_transactions` runs only when the rollup window looks empty (all zeros)
- * or when `reconcile=1` is passed (forces raw sync parity; slower on large histories).
- */
 export async function GET(request: Request) {
   const pub = await requireApprovedPublisher();
   if (!pub.ok) {
@@ -43,9 +57,11 @@ export async function GET(request: Request) {
   const forceReconcile = searchParams.get("reconcile") === "1";
 
   const supabase = createServerSupabaseClient();
+
+  // Impact schema: payout_total + action_count + sale_total
   const { data: rows, error } = await supabase
     .from("publisher_earnings_daily")
-    .select("earn_date, currency, commission_total, sale_total, txn_count")
+    .select("earn_date, currency, payout_total, action_count, sale_total")
     .eq("publisher_id", pub.userId)
     .gte("earn_date", from)
     .order("earn_date", { ascending: true });
@@ -54,46 +70,36 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  type Row = {
-    earn_date: string;
-    currency: string;
-    commission_total: number | string | null;
-    sale_total: number | string | null;
-    txn_count: number | string | null;
-  };
+  return processRows((rows ?? []) as Row[], pub.userId, from, days, forceReconcile, supabase, searchParams);
+}
 
-  const list = (rows ?? []) as Row[];
-
+async function processRows(
+  list: Row[],
+  publisherId: string,
+  from: string,
+  days: number,
+  forceReconcile: boolean,
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  searchParams: URLSearchParams,
+) {
   let commissionByCurrency: Record<string, number> = {};
   let saleByCurrency: Record<string, number> = {};
   let totalTxns = 0;
 
-  let series: {
-    date: string;
-    currency: string;
-    commission: number;
-    sale: number;
-    transactions: number;
-  }[] = [];
+  let series: { date: string; currency: string; commission: number; sale: number; transactions: number }[] = [];
 
   let source: "rollup" | "awin_transactions" = "rollup";
   let reconcileError: string | null = null;
 
   for (const r of list) {
     const cur = (r.currency ?? AWIN_AGG_FALLBACK_CURRENCY).toUpperCase();
-    const c = Number(r.commission_total ?? 0);
-    const s = Number(r.sale_total ?? 0);
-    const t = Number(r.txn_count ?? 0);
+    const c = rowCommission(r);
+    const s = rowSale(r);
+    const t = rowTxns(r);
     commissionByCurrency[cur] = (commissionByCurrency[cur] ?? 0) + c;
     saleByCurrency[cur] = (saleByCurrency[cur] ?? 0) + s;
     totalTxns += t;
-    series.push({
-      date: r.earn_date,
-      currency: cur,
-      commission: c,
-      sale: s,
-      transactions: t,
-    });
+    series.push({ date: r.earn_date, currency: cur, commission: c, sale: s, transactions: t });
   }
 
   series.sort((a, b) => a.date.localeCompare(b.date) || a.currency.localeCompare(b.currency));
@@ -102,7 +108,7 @@ export async function GET(request: Request) {
 
   if (shouldReconcileFromTransactions) {
     try {
-      const live = await publisherEarningsFromTransactions(supabase, pub.userId, from);
+      const live = await publisherEarningsFromTransactions(supabase, publisherId, from);
       const liveCommissionSum = Object.values(live.commissionByCurrency).reduce((a, b) => a + b, 0);
       if (live.totalTxns > 0 || liveCommissionSum > 0) {
         series = live.series;
@@ -119,9 +125,9 @@ export async function GET(request: Request) {
   let debug: Record<string, unknown> | undefined;
   if (searchParams.get("debug") === "1") {
     const [{ count: attributed }, { count: linkRows }, slugRes] = await Promise.all([
-      supabase.from("awin_transactions").select("*", { count: "exact", head: true }).eq("publisher_id", pub.userId),
-      supabase.from("publisher_go_links").select("*", { count: "exact", head: true }).eq("publisher_id", pub.userId),
-      supabase.from("publisher_go_links").select("slug").eq("publisher_id", pub.userId).limit(100),
+      supabase.from("awin_transactions").select("*", { count: "exact", head: true }).eq("publisher_id", publisherId),
+      supabase.from("publisher_go_links").select("*", { count: "exact", head: true }).eq("publisher_id", publisherId),
+      supabase.from("publisher_go_links").select("slug").eq("publisher_id", publisherId).limit(100),
     ]);
     const slugs = [...new Set((slugRes.data ?? []).map((x: { slug?: string }) => String(x.slug ?? "").trim()).filter(Boolean))];
     let txnAnyGoSlugCol = 0 as number;

@@ -132,61 +132,55 @@ async function loadPublisherFinancialsLegacy(
   const payoutByPublisher = new Map<string, Record<string, number>>();
   const salesByPublisher = new Map<string, Record<string, number>>();
 
-  const { data: rollupRows, error: rollupError } = await supabase
+  // Impact schema uses payout_total; Awin/legacy schema uses commission_total
+  const { data: rollupRows } = await supabase
     .from("publisher_earnings_daily")
-    .select("publisher_id, currency, commission_total, sale_total")
+    .select("publisher_id, currency, payout_total, sale_total")
     .in("publisher_id", publisherIds);
-
-  if (rollupError) {
-    throw new Error(rollupError.message);
-  }
 
   type RollupRow = {
     publisher_id: string;
     currency: string | null;
-    commission_total: number | string | null;
+    payout_total?: number | string | null;
     sale_total: number | string | null;
   };
   for (const r of (rollupRows ?? []) as RollupRow[]) {
     const pid = r.publisher_id;
     if (!pid) continue;
-    const cur = (r.currency ?? "GBP").toUpperCase();
+    const cur = (r.currency ?? "USD").toUpperCase();
+    const payout = Number(r.payout_total ?? 0);
     const payoutPrev = payoutByPublisher.get(pid) ?? {};
-    payoutPrev[cur] = (payoutPrev[cur] ?? 0) + Number(r.commission_total ?? 0);
+    payoutPrev[cur] = (payoutPrev[cur] ?? 0) + payout;
     payoutByPublisher.set(pid, payoutPrev);
     const salePrev = salesByPublisher.get(pid) ?? {};
     salePrev[cur] = (salePrev[cur] ?? 0) + Number(r.sale_total ?? 0);
     salesByPublisher.set(pid, salePrev);
   }
 
-  let liveByPub: Awaited<ReturnType<typeof payoutAndSaleForPublisherIdsFromTransactions>> | null = null;
-  let slugByPub: Awaited<ReturnType<typeof slugLinkedPayoutAndSaleForPublisherIds>> | null = null;
-  const ensureTxnFallbacks = async () => {
-    if (liveByPub && slugByPub) return;
-    const [live, slug] = await Promise.all([
-      payoutAndSaleForPublisherIdsFromTransactions(supabase, publisherIds),
-      slugLinkedPayoutAndSaleForPublisherIds(supabase, publisherIds),
-    ]);
-    liveByPub = live;
-    slugByPub = slug;
-  };
-
+  // Try Awin transaction fallback — skip gracefully if table doesn't exist
   for (const pid of publisherIds) {
     const rp = payoutByPublisher.get(pid) ?? {};
     const rs = salesByPublisher.get(pid) ?? {};
     if (sumCurrencyMap(rp) + sumCurrencyMap(rs) > 0) continue;
-    await ensureTxnFallbacks();
-    const mergedP = mergeCurrencyMaps(
-      liveByPub!.payoutByPublisher.get(pid) ?? {},
-      slugByPub!.payoutByPublisher.get(pid) ?? {}
-    );
-    const mergedS = mergeCurrencyMaps(
-      liveByPub!.saleByPublisher.get(pid) ?? {},
-      slugByPub!.saleByPublisher.get(pid) ?? {}
-    );
-    if (sumCurrencyMap(mergedP) + sumCurrencyMap(mergedS) > 0) {
-      payoutByPublisher.set(pid, mergedP);
-      salesByPublisher.set(pid, mergedS);
+    try {
+      const [live, slug] = await Promise.all([
+        payoutAndSaleForPublisherIdsFromTransactions(supabase, [pid]),
+        slugLinkedPayoutAndSaleForPublisherIds(supabase, [pid]),
+      ]);
+      const mergedP = mergeCurrencyMaps(
+        live.payoutByPublisher.get(pid) ?? {},
+        slug.payoutByPublisher.get(pid) ?? {}
+      );
+      const mergedS = mergeCurrencyMaps(
+        live.saleByPublisher.get(pid) ?? {},
+        slug.saleByPublisher.get(pid) ?? {}
+      );
+      if (sumCurrencyMap(mergedP) + sumCurrencyMap(mergedS) > 0) {
+        payoutByPublisher.set(pid, mergedP);
+        salesByPublisher.set(pid, mergedS);
+      }
+    } catch {
+      // Awin tables may not exist — skip silently
     }
   }
 

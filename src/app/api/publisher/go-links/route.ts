@@ -84,7 +84,7 @@ export async function GET(request: Request) {
   if (raw == null || raw.trim() === "") {
     const { data, error } = await supabase
       .from("publisher_go_links")
-      .select("slug, target_url, deep_link, created_at, click_count, programme_id, awin_programmes(name)")
+      .select("slug, target_url, deep_link, created_at, click_count, campaign_id, network")
       .eq("publisher_id", pub.userId)
       .order("created_at", { ascending: false })
       .limit(50);
@@ -93,38 +93,78 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const links = (data ?? []).map((row) => {
-      const ap = row.awin_programmes as { name?: string } | null | undefined;
-      return {
-        slug: row.slug,
-        shortUrl: `${origin}/go/short/${row.slug}`,
-        targetUrl: row.target_url,
-        deepLink: row.deep_link,
-        createdAt: row.created_at,
-        clickCount: row.click_count,
-        programmeId: row.programme_id,
-        brandName: ap?.name ?? null,
-      };
-    });
+    const rows = data ?? [];
+
+    // Split campaign IDs by network
+    const impactIds     = [...new Set(rows.filter(r => (r.network ?? "impact") === "impact").map(r => r.campaign_id).filter(Boolean))];
+    const ttIds         = [...new Set(rows.filter(r => r.network === "tradetracker").map(r => r.campaign_id).filter(Boolean))];
+    const porIds        = [...new Set(rows.filter(r => r.network === "paidonresults").map(r => r.campaign_id).filter(Boolean))];
+
+    const nameMap: Record<string, string>        = {};
+    const logoMap: Record<string, string | null> = {};
+
+    const [impactRes, ttRes, porRes] = await Promise.all([
+      impactIds.length > 0
+        ? supabase.from("impact_campaigns").select("impact_id, name, logo_url").in("impact_id", impactIds)
+        : { data: [] },
+      ttIds.length > 0
+        ? supabase.from("tradetracker_campaigns").select("tt_campaign_id, name, logo_url").in("tt_campaign_id", ttIds)
+        : { data: [] },
+      porIds.length > 0
+        ? supabase.from("por_merchants").select("merchant_id, name, logo_url").in("merchant_id", porIds)
+        : { data: [] },
+    ]);
+
+    for (const c of impactRes.data ?? []) {
+      if (c.impact_id) {
+        nameMap[c.impact_id] = c.name ?? c.impact_id;
+        logoMap[c.impact_id] = `/api/impact-logo?c=${encodeURIComponent(c.impact_id)}`;
+      }
+    }
+    for (const c of ttRes.data ?? []) {
+      const id = (c as { tt_campaign_id: string; name: string; logo_url: string | null }).tt_campaign_id;
+      if (id) {
+        nameMap[id] = (c as { name: string }).name ?? id;
+        logoMap[id] = (c as { logo_url: string | null }).logo_url ?? null;
+      }
+    }
+    for (const c of porRes.data ?? []) {
+      const id  = (c as { merchant_id: string; name: string; logo_url: string | null }).merchant_id;
+      const raw = (c as { logo_url: string | null }).logo_url;
+      if (id) {
+        nameMap[id] = (c as { name: string }).name ?? id;
+        logoMap[id] = raw ? `/api/por-logo?url=${encodeURIComponent(raw)}` : null;
+      }
+    }
+
+    const links = rows.map((row) => ({
+      slug:        row.slug,
+      shortUrl:    `${origin}/go/short/${row.slug}`,
+      targetUrl:   row.target_url,
+      deepLink:    row.deep_link,
+      createdAt:   row.created_at,
+      clickCount:  row.click_count,
+      programmeId: row.campaign_id,
+      campaignId:  row.campaign_id,
+      network:     row.network ?? "impact",
+      brandName:   nameMap[row.campaign_id] ?? row.campaign_id ?? null,
+      logoUrl:     logoMap[row.campaign_id] ?? null,
+    }));
 
     return NextResponse.json({ links });
   }
 
-  const programmeId = Number(raw);
-  if (!Number.isFinite(programmeId)) {
-    return NextResponse.json({ error: "Invalid programmeId" }, { status: 400 });
-  }
-
-  const access = await assertBrandAccess(supabase, pub.userId, programmeId);
-  if (!access.ok) {
-    return NextResponse.json({ error: access.message }, { status: access.status });
+  // campaignId is a string (impact_campaigns.impact_id); legacy callers pass a number (Awin)
+  const campaignId = raw.trim();
+  if (!campaignId) {
+    return NextResponse.json({ error: "Invalid campaignId" }, { status: 400 });
   }
 
   const { data, error } = await supabase
     .from("publisher_go_links")
     .select("slug, target_url, deep_link, created_at, click_count")
     .eq("publisher_id", pub.userId)
-    .eq("programme_id", programmeId)
+    .eq("campaign_id", campaignId)
     .order("created_at", { ascending: false })
     .limit(30);
 

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 44" fill="none" role="img" aria-label="AliExpress">
+  <path fill="#E43221" d="M6 8h28c2 0 4 2 4 4v20c0 2-2 4-4 4H6c-2 0-4-2-4-4V12c0-2 2-4 4-4z"/>
+  <path fill="#fff" d="M12 16h16v3H12v-3zm0 7h20v3H12v-3zm0 7h14v3H12v-3z"/>
+  <path fill="#1A1A1A" d="M44 14h7l10 26h-7l-2-6H43l-2 6h-7L44 14zm2 16-3-9-3 9h6zm22-16h7v26h-7V14zm12 0h12c6 0 11 4 11 10 0 7-5 11-12 11h-4v5h-7V14zm7 7v10h4c4 0 6-2 6-5s-2-5-6-5h-4z"/>
+</svg>

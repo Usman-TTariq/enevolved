@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import PublisherAwinTransactionsSection from "@/components/publisher/PublisherAwinTransactionsSection";
 import PublisherSupportChat from "@/components/publisher/PublisherSupportChat";
 import {
@@ -27,9 +26,8 @@ function LiveEarningsSparkline({ points }: { points: number[] }) {
   const pad = 12;
   if (points.length === 0) {
     return (
-      <div className="flex h-44 items-center justify-center rounded-lg border border-white/5 bg-zinc-950/40 text-sm text-zinc-500">
-        No commission in this window yet. Create tracking links (they send your link slug as Awin click ref) and run an admin
-        sync.
+      <div className="flex h-44 items-center justify-center rounded-lg border border-gray-100 bg-gray-50 text-sm text-gray-400">
+        No commission in this window yet. Create tracking links and run an admin sync.
       </div>
     );
   }
@@ -39,11 +37,11 @@ function LiveEarningsSparkline({ points }: { points: number[] }) {
   const line = points.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
   const area = `M ${toX(0)},${h - pad} L ${points.map((v, i) => `${toX(i)},${toY(v)}`).join(" ")} L ${toX(points.length - 1)},${h - pad} Z`;
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-44 w-full text-indigo-400" preserveAspectRatio="none" aria-hidden>
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-44 w-full text-teal-500" preserveAspectRatio="none" aria-hidden>
       <defs>
         <linearGradient id="areaFillDetailed" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgb(99,102,241)" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="rgb(99,102,241)" stopOpacity="0" />
+          <stop offset="0%" stopColor="rgb(20,184,166)" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="rgb(20,184,166)" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={area} fill="url(#areaFillDetailed)" />
@@ -60,32 +58,23 @@ function ProfileCompletenessRing({ percent }: { percent: number }) {
     <div className="flex flex-col items-center justify-center sm:items-start">
       <div className="relative h-[132px] w-[132px]">
         <svg className="-rotate-90" width="132" height="132" viewBox="0 0 132 132" aria-hidden>
-          <circle cx="66" cy="66" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="10" />
-          <circle
-            cx="66"
-            cy="66"
-            r={r}
-            fill="none"
-            stroke="url(#ringGradDetailed)"
-            strokeWidth="10"
-            strokeLinecap="round"
-            strokeDasharray={c}
-            strokeDashoffset={offset}
-            className="transition-[stroke-dashoffset] duration-700"
-          />
+          <circle cx="66" cy="66" r={r} fill="none" stroke="rgb(229,231,235)" strokeWidth="10" />
+          <circle cx="66" cy="66" r={r} fill="none" stroke="url(#ringGradDetailed)" strokeWidth="10"
+            strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
+            className="transition-[stroke-dashoffset] duration-700" />
           <defs>
             <linearGradient id="ringGradDetailed" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#6366f1" />
-              <stop offset="100%" stopColor="#8b5cf6" />
+              <stop offset="0%" stopColor="#0d9488" />
+              <stop offset="100%" stopColor="#059669" />
             </linearGradient>
           </defs>
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold tabular-nums text-white">{percent}%</span>
-          <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">complete</span>
+          <span className="text-2xl font-bold tabular-nums text-gray-900">{percent}%</span>
+          <span className="text-[10px] font-medium uppercase tracking-wider text-gray-400">complete</span>
         </div>
       </div>
-      <p className="mt-3 max-w-[200px] text-center text-xs text-zinc-500 sm:text-left">Profile completeness</p>
+      <p className="mt-3 max-w-[200px] text-center text-xs text-gray-400 sm:text-left">Profile completeness</p>
     </div>
   );
 }

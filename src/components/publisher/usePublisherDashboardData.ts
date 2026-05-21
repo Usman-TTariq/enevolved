@@ -12,8 +12,10 @@ export type GoLinkSummary = {
   deepLink: boolean;
   createdAt: string;
   clickCount: number;
-  programmeId: number;
+  programmeId: string | number | null;
+  campaignId?: string | null;
   brandName: string | null;
+  logoUrl?: string | null;
 };
 
 export type EarningsApi = {
@@ -162,26 +164,73 @@ export function usePublisherDashboardData() {
       setEarningsReconcileError(null);
       setEarningsDebug(null);
       try {
-        const res = await fetch("/api/publisher/earnings?days=730&debug=1", { credentials: "include" });
-        const data = (await res.json().catch(() => ({}))) as EarningsApi & { error?: string };
-        if (!res.ok) {
-          if (!cancelled) {
-            setEarningsError(data.error ?? "Could not load earnings.");
-            setEarningsReconcileError(null);
-            setEarningsDebug(null);
-          }
+        // Fetch Impact + TradeTracker earnings in parallel
+        const [impactRes, ttRes] = await Promise.all([
+          fetch("/api/publisher/earnings?days=730&debug=1", { credentials: "include" }),
+          fetch("/api/publisher/tradetracker/earnings?days=730", { credentials: "include" }),
+        ]);
+        const impactData = (await impactRes.json().catch(() => ({}))) as EarningsApi & { error?: string };
+        const ttData     = (await ttRes.json().catch(() => ({}))) as EarningsApi & { error?: string };
+
+        if (!impactRes.ok && !ttRes.ok) {
+          if (!cancelled) setEarningsError(impactData.error ?? "Could not load earnings.");
           return;
         }
+
         if (!cancelled) {
-          setEarnings(data);
+          // Merge both series by date
+          type SeriesRow = { date: string; currency: string; commission: number; sale: number; transactions: number };
+          const impactSeries: SeriesRow[] = impactData.series ?? [];
+          const ttSeries:     SeriesRow[] = ttData.series ?? [];
+
+          // Group by date+currency, sum values
+          const map = new Map<string, SeriesRow>();
+          for (const row of [...impactSeries, ...ttSeries]) {
+            const key = `${row.date}__${row.currency}`;
+            const prev = map.get(key);
+            if (prev) {
+              prev.commission   += row.commission;
+              prev.sale         += row.sale;
+              prev.transactions += row.transactions;
+            } else {
+              map.set(key, { ...row });
+            }
+          }
+          const mergedSeries = [...map.values()].sort((a, b) =>
+            a.date.localeCompare(b.date) || a.currency.localeCompare(b.currency)
+          );
+
+          // Merge totals
+          const commissionByCurrency: Record<string, number> = { ...(impactData.totals?.commissionByCurrency ?? {}) };
+          const saleByCurrency:       Record<string, number> = { ...(impactData.totals?.saleByCurrency ?? {}) };
+          for (const [cur, val] of Object.entries(ttData.totals?.commissionByCurrency ?? {})) {
+            commissionByCurrency[cur] = (commissionByCurrency[cur] ?? 0) + val;
+          }
+          for (const [cur, val] of Object.entries(ttData.totals?.saleByCurrency ?? {})) {
+            saleByCurrency[cur] = (saleByCurrency[cur] ?? 0) + val;
+          }
+
+          const merged: EarningsApi = {
+            days: impactData.days ?? 730,
+            from: impactData.from ?? ttData.from ?? "",
+            series: mergedSeries,
+            source: "impact+tradetracker",
+            totals: {
+              commissionByCurrency,
+              saleByCurrency,
+              transactions: (impactData.totals?.transactions ?? 0) + (ttData.totals?.transactions ?? 0),
+            },
+          };
+
+          setEarnings(merged);
           setEarningsReconcileError(
-            typeof data.reconcileError === "string" && data.reconcileError.trim()
-              ? data.reconcileError.trim()
+            typeof impactData.reconcileError === "string" && impactData.reconcileError.trim()
+              ? impactData.reconcileError.trim()
               : null
           );
           setEarningsDebug(
-            data.debug && typeof data.debug === "object" && !Array.isArray(data.debug)
-              ? (data.debug as Record<string, unknown>)
+            impactData.debug && typeof impactData.debug === "object" && !Array.isArray(impactData.debug)
+              ? (impactData.debug as Record<string, unknown>)
               : null
           );
         }

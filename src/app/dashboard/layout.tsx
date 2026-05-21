@@ -3,10 +3,10 @@ import PublisherDashboardNavbar from "@/components/publisher/PublisherDashboardN
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-slate-50">
       <PublisherDashboardNavbar />
-      {/* Match publisher nav: 3.75rem bar + 1px border — avoids extra same-color strip under the hairline */}
-      <div className="pt-[calc(3.75rem+1px)]">{children}</div>
+      {/* navbar h-16 = 4rem + 1px border */}
+      <div className="pt-[calc(4rem+1px)]">{children}</div>
     </div>
   );
 }
