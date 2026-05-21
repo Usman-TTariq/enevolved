@@ -15,7 +15,7 @@ export default function YieldkitCampaignsContent() {
   const [loading,   setLoading]   = useState(true);
   const [search,    setSearch]    = useState("");
   const [status,    setStatus]    = useState("");
-  const debounce    = useRef<ReturnType<typeof setTimeout>>();
+  const debounce    = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const load = async (p = page, q = search, s = status) => {
     setLoading(true);

@@ -29,7 +29,7 @@ export default function YieldkitTransactionsContent() {
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState("");
   const [state,   setState]   = useState("");
-  const debounce  = useRef<ReturnType<typeof setTimeout>>();
+  const debounce  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const load = async (p = page, q = search, s = state) => {
     setLoading(true);

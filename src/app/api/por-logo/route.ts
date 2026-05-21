@@ -11,7 +11,6 @@ export async function GET(request: Request) {
   try {
     const res = await fetch(logoUrl, {
       headers: { "User-Agent": "Mozilla/5.0" },
-      // @ts-expect-error next cache
       next: { revalidate: 86400 },
     });
 

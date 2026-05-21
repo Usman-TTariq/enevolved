@@ -380,7 +380,9 @@ export default function ImpactBrandDetailContent({ campaignId }: { campaignId: s
                     <div className="divide-y divide-gray-100">
                       {sections.map((s, i) => (
                         <section key={i} className="px-5 py-5">
-                          {(s.Title ?? s.name) && <h3 className="text-sm font-semibold text-teal-700">{String(s.Title ?? s.name)}</h3>}
+                          {String(s.Title ?? s.name ?? "").trim() ? (
+                            <h3 className="text-sm font-semibold text-teal-700">{String(s.Title ?? s.name)}</h3>
+                          ) : null}
                           <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-gray-600">{String(s.Body ?? s.content ?? "")}</p>
                         </section>
                       ))}
@@ -426,26 +428,30 @@ export default function ImpactBrandDetailContent({ campaignId }: { campaignId: s
                     <ul className="divide-y divide-gray-100">
                       {all.map((c, i) => (
                         <li key={i} className="flex flex-col gap-4 px-5 py-5 sm:flex-row">
-                          {(c.ImageUrl ?? c.Url) && (
+                          {String(c.ImageUrl ?? c.Url ?? "").trim() ? (
                             <div className="relative h-28 w-full shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 sm:w-40">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={String(c.ImageUrl ?? c.Url)} alt="" className="h-full w-full object-cover" />
                             </div>
-                          )}
+                          ) : null}
                           <div className="min-w-0 flex-1">
-                            {(c.Name ?? c.Title) && <h3 className="text-base font-semibold text-gray-900">{String(c.Name ?? c.Title)}</h3>}
-                            {(c.Type ?? c.Format) && (
+                            {String(c.Name ?? c.Title ?? "").trim() ? (
+                              <h3 className="text-base font-semibold text-gray-900">{String(c.Name ?? c.Title)}</h3>
+                            ) : null}
+                            {String(c.Type ?? c.Format ?? "").trim() ? (
                               <span className="mt-1 inline-block rounded-md bg-teal-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-teal-700 ring-1 ring-teal-200">
                                 {String(c.Type ?? c.Format)}
                               </span>
-                            )}
-                            {c.Description && <p className="mt-2 text-sm leading-relaxed text-gray-500">{String(c.Description)}</p>}
-                            {c.TrackingLink && (
+                            ) : null}
+                            {String(c.Description ?? "").trim() ? (
+                              <p className="mt-2 text-sm leading-relaxed text-gray-500">{String(c.Description)}</p>
+                            ) : null}
+                            {String(c.TrackingLink ?? "").trim() ? (
                               <a href={String(c.TrackingLink)} target="_blank" rel="noopener noreferrer"
                                 className="mt-3 inline-block rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-700">
                                 Open tracking URL
                               </a>
-                            )}
+                            ) : null}
                           </div>
                         </li>
                       ))}

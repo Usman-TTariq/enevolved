@@ -158,7 +158,7 @@ export default function ImpactManageContent() {
               Hourly cron is configured in <CodePill>vercel.json</CodePill> for{" "}
               <CodePill>POST /api/cron/impact-actions</CodePill>. Set env{" "}
               <CodePill>IMPACT_SYNC_CRON_SECRET</CodePill> and send header{" "}
-              <CodePill>Authorization: Bearer {"<secret>"}</CodePill>.
+              <CodePill>{'Authorization: Bearer <secret>'}</CodePill>.
             </p>
           </div>
         </div>
