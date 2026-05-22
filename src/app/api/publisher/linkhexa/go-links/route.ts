@@ -47,7 +47,10 @@ export async function POST(request: Request) {
 
   if (error) {
     if (error.code === "23505")
-      return NextResponse.json({ error: "A link for this programme already exists." }, { status: 409 });
+      return NextResponse.json(
+        { error: "This slug already exists. Try again — Linkhexa should return a new slug." },
+        { status: 409 },
+      );
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

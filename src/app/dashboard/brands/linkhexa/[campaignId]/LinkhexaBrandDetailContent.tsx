@@ -80,12 +80,13 @@ export default function LinkhexaBrandDetailContent({ campaignId }: { campaignId:
     setGoLinks((data.goLinks as GoLink[]) ?? []);
   }, []);
 
-  const load = useCallback(async (opts?: { showSpinner?: boolean; refresh?: boolean }) => {
-    const showSpinner = opts?.showSpinner !== false;
+  const load = useCallback(async (opts?: { showSpinner?: boolean; refresh?: boolean } | boolean) => {
+    const options = typeof opts === "boolean" ? { showSpinner: opts } : opts;
+    const showSpinner = options?.showSpinner !== false;
     if (showSpinner) setLoading(true);
 
     try {
-      if (opts?.refresh) {
+      if (options?.refresh) {
         setRefreshing(true);
         const res = await fetch(
           `/api/publisher/linkhexa/brands/${campaignId}?enrich=1&refresh=1`,
@@ -154,8 +155,21 @@ export default function LinkhexaBrandDetailContent({ campaignId }: { campaignId:
       });
       const data = await res.json();
       if (!res.ok) { setCreateError(data.error ?? "Failed to create link."); return; }
-      setLastCreated(data.shortUrl ?? data.targetUrl ?? null);
-      await load(false);
+      const url = (data.shortUrl ?? data.targetUrl) as string | undefined;
+      setLastCreated(url ?? null);
+      if (url) {
+        const row: GoLink = {
+          id: (data.slug as string) ?? url,
+          slug: (data.slug as string) ?? "",
+          target_url: url,
+          deep_link: false,
+          created_at: new Date().toISOString(),
+        };
+        setGoLinks((prev) => {
+          if (prev.some((l) => l.slug === row.slug || l.target_url === row.target_url)) return prev;
+          return [row, ...prev];
+        });
+      }
     } catch { setCreateError("Request failed."); }
     finally { setCreating(false); }
   };
@@ -378,7 +392,7 @@ export default function LinkhexaBrandDetailContent({ campaignId }: { campaignId:
               {applicationStatus === "approved" ? (
                 <>
                   <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm space-y-4">
-                    <p className="text-sm text-gray-500">Creates a tracking link via Linkhexa Partner API (<code className="text-xs">/go/p/slug</code>). Clickref on the Awin URL matches your slug for sales attribution.</p>
+                    <p className="text-sm text-gray-500">Each click creates a new Linkhexa short link (<code className="text-xs">/go/p/slug</code>) for separate campaigns or placements. Clickref matches the slug for attribution.</p>
                     {createError && <p className="text-sm text-red-600">{createError}</p>}
                     {lastCreated && (
                       <div className="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3">
@@ -388,9 +402,9 @@ export default function LinkhexaBrandDetailContent({ campaignId }: { campaignId:
                         </button>
                       </div>
                     )}
-                    <button onClick={createLink} disabled={creating || goLinks.length > 0}
+                    <button onClick={createLink} disabled={creating}
                       className="w-full rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-60" style={{ background: accent }}>
-                      {creating ? "Creating…" : goLinks.length > 0 ? "Link already created" : "Create tracking link"}
+                      {creating ? "Creating…" : goLinks.length > 0 ? "Create another link" : "Create tracking link"}
                     </button>
                   </div>
                   {goLinks.map((l) => (
